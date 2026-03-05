@@ -15,7 +15,7 @@ export function useSpeechRecognition() {
     }
 
     const recog = new SpeechRecognition();
-    recog.continuous = true;
+    recog.continuous = false;
     recog.interimResults = true;
     recog.lang = 'en-US';
 

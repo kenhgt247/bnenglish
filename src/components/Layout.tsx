@@ -1,5 +1,5 @@
 import { Outlet, Link, useNavigate } from 'react-router-dom';
-import { BookOpen, Home, User, Settings, LogOut, Database, Sparkles, Swords } from 'lucide-react';
+import { BookOpen, Home, User, Settings, LogOut, Database, Sparkles, Swords, Activity } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { auth } from '../lib/firebase';
 import { signOut } from 'firebase/auth';
@@ -44,7 +44,7 @@ export default function Layout() {
             {user && (
               <>
                 <Link to="/dashboard" className="text-slate-600 hover:text-blue-600 font-medium flex items-center gap-1">
-                  <User className="w-4 h-4" /> Tiến độ
+                  <Activity className="w-4 h-4" /> Tiến độ
                 </Link>
                 <Link to="/profile" className="text-slate-600 hover:text-blue-600 font-medium flex items-center gap-1">
                   <User className="w-4 h-4" /> Cá nhân
@@ -61,9 +61,9 @@ export default function Layout() {
           <div className="flex items-center gap-4">
             {user ? (
               <div className="flex items-center gap-4">
-                <span className="text-sm font-medium text-slate-700 hidden sm:block">
-                  {profile?.displayName || user.email}
-                </span>
+                <Link to="/profile" className="p-2 text-slate-400 hover:text-blue-600 transition-colors" title="Cá nhân">
+                  <User className="w-5 h-5" />
+                </Link>
                 <button 
                   onClick={handleLogout}
                   className="p-2 text-slate-400 hover:text-red-500 transition-colors"
@@ -114,14 +114,9 @@ export default function Layout() {
           <Swords className="w-5 h-5" /> Đấu trường
         </Link>
         {user && (
-          <>
-            <Link to="/dashboard" className="flex flex-col items-center gap-1 p-2">
-              <BookOpen className="w-5 h-5" /> Tiến độ
-            </Link>
-            <Link to="/profile" className="flex flex-col items-center gap-1 p-2">
-              <User className="w-5 h-5" /> Cá nhân
-            </Link>
-          </>
+          <Link to="/dashboard" className="flex flex-col items-center gap-1 p-2">
+            <Activity className="w-5 h-5" /> Tiến độ
+          </Link>
         )}
       </nav>
     </div>

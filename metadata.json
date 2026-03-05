@@ -1,0 +1,7 @@
+{
+  "name": "NEnglish",
+  "description": "Ứng dụng học tiếng Anh với tính năng luyện nói và luyện nghe",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

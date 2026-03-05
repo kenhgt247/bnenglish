@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Function to check if user is admin
+    function isAdmin() {
+      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Public read access to learning content, admin only write
+    match /grades/{gradeId} {
+      allow read: if true;
+      allow write: if isAdmin();
+      
+      match /units/{unitId} {
+        allow read: if true;
+        allow write: if isAdmin();
+        
+        match /lessons/{lessonId} {
+          allow read: if true;
+          allow write: if isAdmin();
+          
+          match /words/{wordId} {
+            allow read: if true;
+            allow write: if isAdmin();
+          }
+        }
+      }
+    }
+
+    // User profiles and progress
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+      
+      match /progress_words/{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      match /quiz_attempts/{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      match /daily_stats/{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      match /daily_plans/{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      match /speaking_attempts/{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      match /listening_attempts/{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      match /spelling_attempts/{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      match /mistakes/{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    match /leaderboard_weekly/{weekId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+      
+      match /entries/{userId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    match /qna_threads/{threadId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && (request.auth.uid == resource.data.authorId || isAdmin());
+      
+      match /replies/{replyId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update, delete: if request.auth != null && (request.auth.uid == resource.data.authorId || isAdmin());
+      }
+    }
+  }
+}

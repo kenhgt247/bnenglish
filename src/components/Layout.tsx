@@ -81,11 +81,11 @@ export default function Layout() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-5xl mx-auto w-full p-4 md:p-6">
+      <main className="flex-1 max-w-5xl mx-auto w-full p-4 md:p-6 pb-20 md:pb-6">
         <Outlet />
       </main>
 
-      <footer className="bg-white border-t border-slate-200 py-6 mt-auto">
+      <footer className="bg-white border-t border-slate-200 py-6 mt-auto hidden md:block">
         <div className="max-w-5xl mx-auto px-4 text-center text-slate-500 text-sm flex flex-col sm:flex-row justify-between items-center gap-4">
           <p>© 2026 BNEnglish. Học tiếng Anh cùng Bảo Nam.</p>
           {profile?.role === 'admin' && (
@@ -95,6 +95,29 @@ export default function Layout() {
           )}
         </div>
       </footer>
+
+      {/* Mobile Footer Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-20 flex justify-around p-2 text-xs text-slate-600">
+        <Link to="/" className="flex flex-col items-center gap-1 p-2">
+          <Home className="w-5 h-5" /> Trang chủ
+        </Link>
+        <Link to="/teacher" className="flex flex-col items-center gap-1 p-2">
+          <Sparkles className="w-5 h-5" /> Thầy AI
+        </Link>
+        <Link to="/arena" className="flex flex-col items-center gap-1 p-2">
+          <Swords className="w-5 h-5" /> Đấu trường
+        </Link>
+        {user && (
+          <>
+            <Link to="/dashboard" className="flex flex-col items-center gap-1 p-2">
+              <BookOpen className="w-5 h-5" /> Tiến độ
+            </Link>
+            <Link to="/profile" className="flex flex-col items-center gap-1 p-2">
+              <User className="w-5 h-5" /> Cá nhân
+            </Link>
+          </>
+        )}
+      </nav>
     </div>
   );
 }

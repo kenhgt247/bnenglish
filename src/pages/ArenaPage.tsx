@@ -51,7 +51,10 @@ export default function ArenaPage() {
   const [createOptions, setCreateOptions] = useState({ grade: '6', mode: 'ai' as 'ai' | 'pvp', type: '1v1' as '1v1' | '2v2' });
 
   useEffect(() => {
-    const newSocket = io();
+    const newSocket = io(window.location.origin, {
+      path: '/socket.io',
+      transports: ['websocket']
+    });
     setSocket(newSocket);
 
     // Check for room ID in URL
@@ -519,58 +522,58 @@ export default function ArenaPage() {
     return (
       <div className="min-h-screen bg-slate-950 text-white p-4 md:p-8 font-sans overflow-hidden">
         {/* Battle Header */}
-        <div className="max-w-6xl mx-auto grid grid-cols-2 gap-8 mb-12">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 mb-8 md:mb-12">
           {/* Player Stats */}
-          <div className="space-y-4">
+          <div className="space-y-2 md:space-y-4">
             <div className="flex justify-between items-end">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center font-black italic text-xl">P1</div>
+              <div className="flex items-center gap-2 md:gap-3">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-600 rounded-xl flex items-center justify-center font-black italic text-lg md:text-xl">P1</div>
                 <div>
-                  <div className="text-xs font-black text-slate-500 uppercase tracking-widest">Player One</div>
-                  <div className="text-xl font-black italic uppercase tracking-tighter">{player?.name}</div>
+                  <div className="text-[10px] md:text-xs font-black text-slate-500 uppercase tracking-widest">Player One</div>
+                  <div className="text-lg md:text-xl font-black italic uppercase tracking-tighter">{player?.name}</div>
                 </div>
               </div>
               <div className="text-right">
                 <div className="text-[10px] font-black text-slate-500 uppercase">Score</div>
-                <div className="text-2xl font-black italic text-cyan-400">{player?.score}</div>
+                <div className="text-xl md:text-2xl font-black italic text-cyan-400">{player?.score}</div>
               </div>
             </div>
-            <div className="relative h-4 bg-slate-900 rounded-full border border-slate-800 overflow-hidden">
+            <div className="relative h-3 md:h-4 bg-slate-900 rounded-full border border-slate-800 overflow-hidden">
               <motion.div 
                 initial={{ width: '100%' }}
                 animate={{ width: `${player?.hp}%` }}
                 className="absolute top-0 left-0 h-full bg-gradient-to-r from-emerald-500 to-cyan-400"
               />
-              <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black uppercase tracking-widest mix-blend-difference">
+              <div className="absolute inset-0 flex items-center justify-center text-[8px] md:text-[10px] font-black uppercase tracking-widest mix-blend-difference">
                 HP {player?.hp}/100
               </div>
             </div>
           </div>
 
           {/* Opponent Stats */}
-          <div className="space-y-4 text-right">
+          <div className="space-y-2 md:space-y-4 text-right">
             <div className="flex justify-between items-end flex-row-reverse">
-              <div className="flex items-center gap-3 flex-row-reverse">
-                <div className="w-12 h-12 bg-red-600 rounded-xl flex items-center justify-center font-black italic text-xl">
-                  {currentRoom?.mode === 'ai' ? <Bot className="w-6 h-6" /> : 'P2'}
+              <div className="flex items-center gap-2 md:gap-3 flex-row-reverse">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-red-600 rounded-xl flex items-center justify-center font-black italic text-lg md:text-xl">
+                  {currentRoom?.mode === 'ai' ? <Bot className="w-5 h-5 md:w-6 md:h-6" /> : 'P2'}
                 </div>
                 <div>
-                  <div className="text-xs font-black text-slate-500 uppercase tracking-widest">Opponent</div>
-                  <div className="text-xl font-black italic uppercase tracking-tighter">{opponent?.name}</div>
+                  <div className="text-[10px] md:text-xs font-black text-slate-500 uppercase tracking-widest">Opponent</div>
+                  <div className="text-lg md:text-xl font-black italic uppercase tracking-tighter">{opponent?.name}</div>
                 </div>
               </div>
               <div className="text-left">
                 <div className="text-[10px] font-black text-slate-500 uppercase">Score</div>
-                <div className="text-2xl font-black italic text-red-500">{opponent?.score}</div>
+                <div className="text-xl md:text-2xl font-black italic text-red-500">{opponent?.score}</div>
               </div>
             </div>
-            <div className="relative h-4 bg-slate-900 rounded-full border border-slate-800 overflow-hidden">
+            <div className="relative h-3 md:h-4 bg-slate-900 rounded-full border border-slate-800 overflow-hidden">
               <motion.div 
                 initial={{ width: '100%' }}
                 animate={{ width: `${opponent?.hp}%` }}
                 className="absolute top-0 right-0 h-full bg-gradient-to-l from-red-500 to-orange-400"
               />
-              <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black uppercase tracking-widest mix-blend-difference">
+              <div className="absolute inset-0 flex items-center justify-center text-[8px] md:text-[10px] font-black uppercase tracking-widest mix-blend-difference">
                 HP {opponent?.hp}/100
               </div>
             </div>
@@ -584,7 +587,7 @@ export default function ArenaPage() {
             key={currentQuestionIndex}
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="bg-slate-900 border border-slate-800 rounded-[3rem] p-12 relative overflow-hidden"
+            className="bg-slate-900 border border-slate-800 rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 relative overflow-hidden"
           >
             <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-800">
               <motion.div 
@@ -595,34 +598,34 @@ export default function ArenaPage() {
               />
             </div>
 
-            <div className="flex justify-between items-center mb-8">
-              <span className="text-xs font-black text-slate-500 uppercase tracking-[0.3em]">Question {currentQuestionIndex + 1}/10</span>
-              <div className="flex items-center gap-2 text-cyan-400 font-mono font-black text-xl">
-                <Timer className="w-5 h-5" /> {timeLeft}s
+            <div className="flex justify-between items-center mb-6 md:mb-8">
+              <span className="text-[10px] md:text-xs font-black text-slate-500 uppercase tracking-[0.2em] md:tracking-[0.3em]">Question {currentQuestionIndex + 1}/10</span>
+              <div className="flex items-center gap-2 text-cyan-400 font-mono font-black text-lg md:text-xl">
+                <Timer className="w-4 h-4 md:w-5 md:h-5" /> {timeLeft}s
               </div>
             </div>
 
-            <h3 className="text-3xl font-bold leading-tight mb-12 text-center">
+            <h3 className="text-xl md:text-3xl font-bold leading-tight mb-8 md:mb-12 text-center">
               {currentQuestion.question}
             </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
               {currentQuestion.options.map((option, idx) => (
                 <button
                   key={idx}
                   onClick={() => submitAnswer(option)}
                   disabled={!!selectedAnswer}
                   className={cn(
-                    "p-6 rounded-2xl border-2 text-left font-bold transition-all flex items-center gap-4",
+                    "p-4 md:p-6 rounded-2xl border-2 text-left font-bold transition-all flex items-center gap-3 md:gap-4",
                     selectedAnswer === option 
                       ? (isCorrect ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" : "bg-red-500/20 border-red-500 text-red-400")
                       : (selectedAnswer && option === currentQuestion.correctAnswer ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" : "bg-slate-800 border-slate-700 hover:border-slate-500")
                   )}
                 >
-                  <div className="w-8 h-8 rounded-lg bg-slate-700 flex items-center justify-center text-xs font-black uppercase">
+                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-slate-700 flex items-center justify-center text-[10px] md:text-xs font-black uppercase">
                     {String.fromCharCode(65 + idx)}
                   </div>
-                  {option}
+                  <span className="text-sm md:text-base">{option}</span>
                 </button>
               ))}
             </div>
@@ -662,36 +665,36 @@ export default function ArenaPage() {
         <motion.div 
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="max-w-xl w-full bg-slate-900 border border-slate-800 rounded-[3rem] p-12 text-center"
+          className="max-w-xl w-full bg-slate-900 border border-slate-800 rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 text-center"
         >
-          <div className="w-24 h-24 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-8">
-            <Trophy className="w-12 h-12 text-yellow-500" />
+          <div className="w-20 h-20 md:w-24 md:h-24 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-6 md:mb-8">
+            <Trophy className="w-10 h-10 md:w-12 md:h-12 text-yellow-500" />
           </div>
           
-          <h2 className="text-5xl font-black italic uppercase tracking-tighter mb-2">Battle Result</h2>
-          <p className="text-slate-500 font-mono text-sm uppercase tracking-widest mb-12">Final Standings</p>
+          <h2 className="text-3xl md:text-5xl font-black italic uppercase tracking-tighter mb-2">Battle Result</h2>
+          <p className="text-slate-500 font-mono text-[10px] md:text-sm uppercase tracking-widest mb-8 md:mb-12">Final Standings</p>
 
-          <div className="space-y-4 mb-12">
+          <div className="space-y-3 md:space-y-4 mb-8 md:mb-12">
             {[...currentRoom.players].sort((a, b) => b.score - a.score).map((p, i) => (
               <div key={p.id} className={cn(
-                "p-6 rounded-3xl flex items-center justify-between",
+                "p-4 md:p-6 rounded-2xl md:rounded-3xl flex items-center justify-between",
                 i === 0 ? "bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/50" : "bg-slate-800/50 border border-slate-700"
               )}>
-                <div className="flex items-center gap-4">
-                  <div className="text-2xl font-black italic text-slate-500">#{i + 1}</div>
+                <div className="flex items-center gap-3 md:gap-4">
+                  <div className="text-xl md:text-2xl font-black italic text-slate-500">#{i + 1}</div>
                   <div className="text-left">
-                    <div className="font-black uppercase italic">{p.name}</div>
-                    <div className="text-[10px] text-slate-500 font-bold uppercase">Level Up +250 XP</div>
+                    <div className="font-black uppercase italic text-sm md:text-base">{p.name}</div>
+                    <div className="text-[8px] md:text-[10px] text-slate-500 font-bold uppercase">Level Up +250 XP</div>
                   </div>
                 </div>
-                <div className="text-2xl font-black italic text-cyan-400">{p.score}</div>
+                <div className="text-xl md:text-2xl font-black italic text-cyan-400">{p.score}</div>
               </div>
             ))}
           </div>
 
           <button 
             onClick={() => setGameState('lobby')}
-            className="w-full bg-white text-slate-950 font-black py-5 rounded-3xl text-xl uppercase tracking-tighter hover:bg-cyan-50 transition-colors"
+            className="w-full bg-white text-slate-950 font-black py-4 md:py-5 rounded-2xl md:rounded-3xl text-lg md:text-xl uppercase tracking-tighter hover:bg-cyan-50 transition-colors"
           >
             RETURN TO LOBBY
           </button>

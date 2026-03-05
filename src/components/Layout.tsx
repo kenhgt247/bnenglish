@@ -35,6 +35,9 @@ export default function Layout() {
             <Link to="/teacher" className="text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1">
               <Sparkles className="w-4 h-4" /> Thầy AI
             </Link>
+            <Link to="/dictionary" className="text-slate-600 hover:text-blue-600 font-medium flex items-center gap-1">
+              <BookOpen className="w-4 h-4" /> Từ điển
+            </Link>
             <Link to="/arena" className="text-purple-600 hover:text-purple-700 font-semibold flex items-center gap-1">
               <Swords className="w-4 h-4" /> Đấu trường
             </Link>
@@ -103,6 +106,9 @@ export default function Layout() {
         </Link>
         <Link to="/teacher" className="flex flex-col items-center gap-1 p-2">
           <Sparkles className="w-5 h-5" /> Thầy AI
+        </Link>
+        <Link to="/dictionary" className="flex flex-col items-center gap-1 p-2">
+          <BookOpen className="w-5 h-5" /> Từ điển
         </Link>
         <Link to="/arena" className="flex flex-col items-center gap-1 p-2">
           <Swords className="w-5 h-5" /> Đấu trường

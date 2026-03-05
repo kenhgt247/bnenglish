@@ -18,6 +18,7 @@ import AdminPage from './pages/AdminPage';
 import SeedPage from './pages/SeedPage';
 import AITeacherPage from './pages/AITeacherPage';
 import ArenaPage from './pages/ArenaPage';
+import DictionaryPage from './pages/DictionaryPage';
 import ProfilePage from './pages/ProfilePage';
 import SpeakingPage from './features/practice/speaking/SpeakingPage';
 import ListeningPage from './features/practice/listening/ListeningPage';
@@ -64,6 +65,7 @@ function App() {
           <Route path="seed" element={<SeedPage />} />
           <Route path="teacher" element={<AITeacherPage />} />
           <Route path="arena" element={<ArenaPage />} />
+          <Route path="dictionary" element={<DictionaryPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

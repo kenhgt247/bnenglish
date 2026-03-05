@@ -229,66 +229,59 @@ export default function ArenaPage() {
     return (
       <div className="min-h-screen bg-slate-950 text-white p-6 font-sans selection:bg-cyan-500/30">
         <div className="max-w-6xl mx-auto">
-          <header className="flex justify-between items-center mb-12">
+          <header className="flex justify-between items-center mb-6 md:mb-12">
             <div>
-              <h1 className="text-5xl font-black tracking-tighter italic text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 uppercase">
+              <h1 className="text-3xl md:text-5xl font-black tracking-tighter italic text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 uppercase">
                 English Arena
               </h1>
-              <p className="text-slate-400 font-mono text-sm mt-2 uppercase tracking-widest">Battle for Knowledge • Grade 6-9</p>
+              <p className="text-slate-400 font-mono text-[10px] md:text-sm mt-1 md:mt-2 uppercase tracking-widest">Battle for Knowledge</p>
             </div>
-            <div className="flex gap-4">
+            <div className="flex gap-2">
               <button 
                 onClick={() => window.location.href = '/'}
-                className="bg-slate-900 border border-slate-800 px-4 py-3 rounded-2xl flex items-center gap-2 text-slate-400 hover:text-white hover:border-red-500/50 transition-all"
+                className="bg-slate-900 border border-slate-800 p-2 md:px-4 md:py-3 rounded-xl md:rounded-2xl flex items-center gap-2 text-slate-400 hover:text-white hover:border-red-500/50 transition-all"
               >
                 <LogOut className="w-5 h-5" />
-                <span className="text-xs font-bold uppercase tracking-tighter">Exit</span>
+                <span className="hidden md:inline text-xs font-bold uppercase tracking-tighter">Exit</span>
               </button>
-              <div className="bg-slate-900 border border-slate-800 px-6 py-3 rounded-2xl flex items-center gap-3">
-                <Trophy className="w-6 h-6 text-yellow-500" />
-                <div>
-                  <div className="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Weekly Rank</div>
-                  <div className="text-lg font-black italic">#12</div>
-                </div>
-              </div>
             </div>
           </header>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 pb-20">
+            <div className="lg:col-span-2 space-y-6 md:space-y-8">
               <section>
-                <h2 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                <h2 className="text-[10px] md:text-xs font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                   <Swords className="w-4 h-4" /> Available Battles
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {rooms.length === 0 ? (
-                    <div className="col-span-2 border-2 border-dashed border-slate-800 rounded-3xl p-12 text-center">
-                      <p className="text-slate-500 font-medium italic">No active arenas. Create your own!</p>
+                    <div className="col-span-2 border-2 border-dashed border-slate-800 rounded-2xl md:rounded-3xl p-8 md:p-12 text-center">
+                      <p className="text-slate-500 font-medium italic text-sm">No active arenas. Create your own!</p>
                     </div>
                   ) : (
                     rooms.map(room => (
                       <motion.div 
                         key={room.id}
-                        whileHover={{ scale: 1.02, y: -4 }}
-                        className="bg-slate-900 border border-slate-800 p-6 rounded-3xl group cursor-pointer"
+                        whileHover={{ scale: 1.02 }}
+                        className="bg-slate-900 border border-slate-800 p-4 md:p-6 rounded-2xl md:rounded-3xl group cursor-pointer"
                         onClick={() => joinRoom(room.id)}
                       >
-                        <div className="flex justify-between items-start mb-4">
+                        <div className="flex justify-between items-start mb-3">
                           <span className="bg-blue-500/10 text-blue-400 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter">
                             Grade {room.grade}
                           </span>
-                          <span className="text-slate-600 font-mono text-xs">#{room.id}</span>
+                          <span className="text-slate-600 font-mono text-[10px]">#{room.id}</span>
                         </div>
-                        <h3 className="text-xl font-black italic mb-2 uppercase group-hover:text-cyan-400 transition-colors">
+                        <h3 className="text-lg md:text-xl font-black italic mb-2 uppercase group-hover:text-cyan-400 transition-colors">
                           {room.mode === 'ai' ? 'AI Training' : 'PvP Arena'}
                         </h3>
-                        <div className="flex items-center gap-4 text-slate-400 text-sm">
+                        <div className="flex items-center gap-4 text-slate-400 text-xs">
                           <div className="flex items-center gap-1.5">
-                            <Users className="w-4 h-4" />
+                            <Users className="w-3 h-3" />
                             <span>{room.players.length}/{room.type === '1v1' ? 2 : 4}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <Shield className="w-4 h-4" />
+                            <Shield className="w-3 h-3" />
                             <span>{room.type}</span>
                           </div>
                         </div>

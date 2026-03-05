@@ -1,0 +1,16 @@
+{
+  "name": "BNEnglish",
+  "short_name": "BNEnglish",
+  "description": "Học tiếng Anh cùng Bảo Nam",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}

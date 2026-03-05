@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Trophy, Users, User, Bot, Swords, Shield, Zap, Heart, Timer, Send, MessageSquare, ChevronRight, Play, Plus, Share2, LogOut, Loader2 } from 'lucide-react';
+import { Trophy, Users, User, Bot, Swords, Shield, Zap, Heart, Timer, Send, MessageSquare, ChevronRight, Play, Plus, Share2, LogOut, Loader2, CheckCircle2, Circle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useAuthStore } from '../store/useAuthStore';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -15,6 +16,7 @@ interface Player {
   name: string;
   score: number;
   hp: number;
+  ready?: boolean;
 }
 
 interface Question {
@@ -30,13 +32,21 @@ interface Room {
   mode: 'ai' | 'pvp';
   type: '1v1' | '2v2';
   players: Player[];
+  ai?: Player | null;
   status: 'waiting' | 'playing' | 'finished';
 }
 
 export default function ArenaPage() {
+  const { user, profile } = useAuthStore();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
+  const currentRoomRef = useRef<Room | null>(null);
+
+  useEffect(() => {
+    currentRoomRef.current = currentRoom;
+  }, [currentRoom]);
+
   const [gameState, setGameState] = useState<'lobby' | 'room' | 'battle' | 'result'>('lobby');
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -53,7 +63,7 @@ export default function ArenaPage() {
   useEffect(() => {
     const newSocket = io(window.location.origin, {
       path: '/socket.io',
-      transports: ['websocket']
+      transports: ['websocket', 'polling']
     });
     setSocket(newSocket);
 
@@ -61,7 +71,7 @@ export default function ArenaPage() {
     const urlParams = new URLSearchParams(window.location.search);
     const roomIdFromUrl = urlParams.get('room');
     if (roomIdFromUrl) {
-      newSocket.emit("join_room", roomIdFromUrl);
+      newSocket.emit("join_room", { roomId: roomIdFromUrl, playerName: profile?.displayName || user?.email });
     }
 
     newSocket.on("update_rooms", (availableRooms: Room[]) => {
@@ -135,13 +145,24 @@ export default function ArenaPage() {
     newSocket.on("player_action", ({ playerId, isCorrect, hp, score }) => {
       setCurrentRoom(prev => {
         if (!prev) return null;
+        if (playerId === 'ai' && prev.ai) {
+          return {
+            ...prev,
+            ai: { ...prev.ai, hp, score }
+          };
+        }
         return {
           ...prev,
           players: prev.players.map(p => p.id === playerId ? { ...p, hp, score } : p)
         };
       });
       
-      const playerName = currentRoom?.players.find(p => p.id === playerId)?.name || "Player";
+      let playerName = "Player";
+      if (playerId === 'ai') {
+        playerName = "Gemini AI";
+      } else {
+        playerName = currentRoomRef.current?.players.find(p => p.id === playerId)?.name || "Player";
+      }
       setBattleLog(prev => [`${playerName} ${isCorrect ? 'tấn công chính xác!' : 'bị trúng đòn!'}`, ...prev.slice(0, 4)]);
     });
 
@@ -156,15 +177,21 @@ export default function ArenaPage() {
   }, []);
 
   const createRoom = (grade: string, mode: 'ai' | 'pvp', type: '1v1' | '2v2' = '1v1') => {
-    socket?.emit("create_room", { grade, mode, type });
+    socket?.emit("create_room", { grade, mode, type, playerName: profile?.displayName || user?.email });
   };
 
   const joinRoom = (roomId: string) => {
-    socket?.emit("join_room", roomId);
+    socket?.emit("join_room", { roomId, playerName: profile?.displayName || user?.email });
     // Update URL with room ID
     const url = new URL(window.location.href);
     url.searchParams.set('room', roomId);
     window.history.replaceState({}, '', url.toString());
+  };
+
+  const toggleReady = () => {
+    if (currentRoom) {
+      socket?.emit("toggle_ready", currentRoom.id);
+    }
   };
 
   const leaveRoom = () => {
@@ -428,37 +455,55 @@ export default function ArenaPage() {
   }
 
   if (gameState === 'room' && currentRoom) {
+    const isMeReady = currentRoom.players.find(p => p.id === socket?.id)?.ready;
+
     return (
-      <div className="min-h-screen bg-slate-950 text-white p-6 flex items-center justify-center">
-        <div className="max-w-2xl w-full bg-slate-900 border border-slate-800 rounded-[3rem] p-12 text-center relative overflow-hidden">
+      <div className="min-h-screen bg-slate-950 text-white p-4 md:p-6 flex items-center justify-center">
+        <div className="max-w-2xl w-full bg-slate-900 border border-slate-800 rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 text-center relative overflow-hidden shadow-2xl">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600" />
           
           <div className="mb-8">
-            <div className="inline-block bg-blue-500/10 text-blue-400 text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-widest mb-4">
+            <div className="inline-block bg-blue-500/10 text-blue-400 text-[10px] md:text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-widest mb-4">
               Arena Lobby • #{currentRoom.id}
             </div>
-            <h2 className="text-4xl font-black italic uppercase tracking-tighter">
+            <h2 className="text-2xl md:text-4xl font-black italic uppercase tracking-tighter">
               {currentRoom.mode === 'ai' ? 'AI Training Session' : 'Waiting for Players'}
             </h2>
           </div>
 
-          <div className="flex justify-center gap-8 mb-12">
+          <div className="flex flex-wrap justify-center gap-4 md:gap-8 mb-12">
             {currentRoom.players.map(p => (
               <div key={p.id} className="text-center group">
-                <div className="w-24 h-24 bg-slate-800 rounded-full border-4 border-slate-700 flex items-center justify-center mb-4 group-hover:border-cyan-500 transition-colors">
-                  <User className="w-12 h-12 text-slate-500 group-hover:text-cyan-400 transition-colors" />
+                <div className={cn(
+                  "w-16 h-16 md:w-24 md:h-24 rounded-full border-4 flex items-center justify-center mb-4 transition-all relative",
+                  p.ready ? "border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]" : "border-slate-700 bg-slate-800"
+                )}>
+                  <User className={cn(
+                    "w-8 h-8 md:w-12 md:h-12 transition-colors",
+                    p.ready ? "text-emerald-400" : "text-slate-500"
+                  )} />
+                  {p.ready && (
+                    <div className="absolute -top-1 -right-1 bg-emerald-500 rounded-full p-1 shadow-lg">
+                      <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 text-white" />
+                    </div>
+                  )}
                 </div>
-                <div className="text-sm font-black italic uppercase">{p.name}</div>
-                <div className="text-[10px] text-slate-500 font-bold uppercase">Ready</div>
+                <div className="text-xs md:text-sm font-black italic uppercase truncate max-w-[80px] md:max-w-[120px]">{p.name}</div>
+                <div className={cn(
+                  "text-[8px] md:text-[10px] font-bold uppercase tracking-widest mt-1",
+                  p.ready ? "text-emerald-400" : "text-slate-500"
+                )}>
+                  {p.ready ? 'Ready' : 'Waiting'}
+                </div>
               </div>
             ))}
             {currentRoom.mode === 'ai' && (
               <div className="text-center opacity-50">
-                <div className="w-24 h-24 bg-slate-800 rounded-full border-4 border-slate-700 border-dashed flex items-center justify-center mb-4">
-                  <Bot className="w-12 h-12 text-slate-600" />
+                <div className="w-16 h-16 md:w-24 md:h-24 bg-slate-800 rounded-full border-4 border-slate-700 border-dashed flex items-center justify-center mb-4">
+                  <Bot className="w-8 h-8 md:w-12 md:h-12 text-slate-600" />
                 </div>
-                <div className="text-sm font-black italic uppercase">Gemini AI</div>
-                <div className="text-[10px] text-slate-500 font-bold uppercase">Opponent</div>
+                <div className="text-xs md:text-sm font-black italic uppercase">Gemini AI</div>
+                <div className="text-[8px] md:text-[10px] text-slate-500 font-bold uppercase">Opponent</div>
               </div>
             )}
           </div>
@@ -470,35 +515,53 @@ export default function ArenaPage() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
-                  className="bg-emerald-500/20 text-emerald-400 text-xs font-bold py-2 rounded-xl border border-emerald-500/30 mb-2"
+                  className="bg-emerald-500/20 text-emerald-400 text-[10px] md:text-xs font-bold py-2 rounded-xl border border-emerald-500/30 mb-2"
                 >
                   Link copied to clipboard!
                 </motion.div>
               )}
             </AnimatePresence>
-            <button 
-              onClick={startBattle}
-              disabled={isGenerating}
-              className="bg-white text-slate-950 font-black py-5 rounded-3xl text-xl uppercase tracking-tighter hover:bg-cyan-50 transition-colors flex items-center justify-center gap-3 disabled:opacity-50"
-            >
-              {isGenerating ? (
-                <>GENERATING BATTLE... <Loader2 className="w-6 h-6 animate-spin" /></>
-              ) : (
-                <>START BATTLE <Zap className="w-6 h-6 fill-current" /></>
-              )}
-            </button>
+
+            {currentRoom.mode === 'ai' ? (
+              <button 
+                onClick={startBattle}
+                disabled={isGenerating}
+                className="bg-white text-slate-950 font-black py-4 md:py-5 rounded-2xl md:rounded-3xl text-lg md:text-xl uppercase tracking-tighter hover:bg-cyan-50 transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 shadow-xl"
+              >
+                {isGenerating ? (
+                  <>GENERATING... <Loader2 className="w-6 h-6 animate-spin" /></>
+                ) : (
+                  <>START BATTLE <Zap className="w-6 h-6 fill-current" /></>
+                )}
+              </button>
+            ) : (
+              <button 
+                onClick={toggleReady}
+                className={cn(
+                  "font-black py-4 md:py-5 rounded-2xl md:rounded-3xl text-lg md:text-xl uppercase tracking-tighter transition-all active:scale-95 flex items-center justify-center gap-3 shadow-xl",
+                  isMeReady ? "bg-emerald-600 text-white hover:bg-emerald-500" : "bg-white text-slate-950 hover:bg-cyan-50"
+                )}
+              >
+                {isMeReady ? (
+                  <>READY! <CheckCircle2 className="w-6 h-6" /></>
+                ) : (
+                  <>I'M READY <Zap className="w-6 h-6 fill-current" /></>
+                )}
+              </button>
+            )}
+
             <div className="flex gap-4">
               <button 
                 onClick={inviteFriends}
-                className="flex-1 bg-slate-800 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-700 transition-colors"
+                className="flex-1 bg-slate-800 text-white font-bold py-3 md:py-4 rounded-xl md:rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-700 transition-colors text-xs md:text-sm"
               >
-                <Share2 className="w-4 h-4" /> INVITE FRIENDS
+                <Share2 className="w-4 h-4" /> INVITE
               </button>
               <button 
                 onClick={leaveRoom}
-                className="bg-slate-800 text-red-400 font-bold p-4 rounded-2xl hover:bg-red-500/10 transition-colors"
+                className="bg-slate-800 text-red-400 font-bold p-3 md:p-4 rounded-xl md:rounded-2xl hover:bg-red-500/10 transition-colors"
               >
-                <LogOut className="w-6 h-6" />
+                <LogOut className="w-5 h-5 md:w-6 md:h-6" />
               </button>
             </div>
           </div>
@@ -509,96 +572,110 @@ export default function ArenaPage() {
 
   if (gameState === 'battle' && questions.length > 0) {
     const currentQuestion = questions[currentQuestionIndex];
-    const player = currentRoom?.players[0];
-    const opponent = currentRoom?.mode === 'ai' ? { name: 'Gemini AI', hp: 100, score: 0 } : currentRoom?.players[1];
+    const player = currentRoom?.players.find(p => p.id === socket?.id) || currentRoom?.players[0];
+    const opponent = currentRoom?.mode === 'ai' ? currentRoom.ai : currentRoom?.players.find(p => p.id !== socket?.id);
 
     return (
-      <div className="min-h-screen bg-slate-950 text-white p-4 md:p-8 font-sans overflow-hidden">
+      <div className="min-h-screen bg-slate-950 text-white p-4 md:p-8 font-sans overflow-hidden flex flex-col">
         {/* Battle Header */}
-        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 mb-8 md:mb-12">
+        <div className="max-w-6xl mx-auto w-full grid grid-cols-2 gap-3 md:gap-8 mb-4 md:mb-12">
           {/* Player Stats */}
-          <div className="space-y-2 md:space-y-4">
+          <div className="space-y-1 md:space-y-4">
             <div className="flex justify-between items-end">
-              <div className="flex items-center gap-2 md:gap-3">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-600 rounded-xl flex items-center justify-center font-black italic text-lg md:text-xl">P1</div>
+              <div className="flex items-center gap-1.5 md:gap-3">
+                <div className="w-8 h-8 md:w-12 md:h-12 bg-blue-600 rounded-lg md:rounded-xl flex items-center justify-center font-black italic text-sm md:text-xl shadow-[0_0_20px_rgba(37,99,235,0.4)]">P1</div>
                 <div>
-                  <div className="text-[10px] md:text-xs font-black text-slate-500 uppercase tracking-widest">Player One</div>
-                  <div className="text-lg md:text-xl font-black italic uppercase tracking-tighter">{player?.name}</div>
+                  <div className="text-[8px] md:text-xs font-black text-slate-500 uppercase tracking-widest">You</div>
+                  <div className="text-xs md:text-xl font-black italic uppercase tracking-tighter truncate max-w-[60px] md:max-w-none">{player?.name}</div>
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-[10px] font-black text-slate-500 uppercase">Score</div>
-                <div className="text-xl md:text-2xl font-black italic text-cyan-400">{player?.score}</div>
+                <div className="text-[8px] md:text-[10px] font-black text-slate-500 uppercase">Score</div>
+                <div className="text-sm md:text-2xl font-black italic text-cyan-400">{player?.score}</div>
               </div>
             </div>
-            <div className="relative h-3 md:h-4 bg-slate-900 rounded-full border border-slate-800 overflow-hidden">
+            <div className="relative h-2.5 md:h-6 bg-slate-900 rounded-full border border-slate-800 overflow-hidden shadow-inner">
               <motion.div 
                 initial={{ width: '100%' }}
                 animate={{ width: `${player?.hp}%` }}
-                className="absolute top-0 left-0 h-full bg-gradient-to-r from-emerald-500 to-cyan-400"
+                className={cn(
+                  "absolute top-0 left-0 h-full transition-colors duration-500",
+                  (player?.hp || 0) > 50 ? "bg-gradient-to-r from-emerald-500 to-cyan-400" : 
+                  (player?.hp || 0) > 20 ? "bg-gradient-to-r from-yellow-500 to-orange-400" : 
+                  "bg-gradient-to-r from-red-600 to-red-400"
+                )}
               />
-              <div className="absolute inset-0 flex items-center justify-center text-[8px] md:text-[10px] font-black uppercase tracking-widest mix-blend-difference">
-                HP {player?.hp}/100
+              <div className="absolute inset-0 flex items-center justify-center text-[6px] md:text-xs font-black uppercase tracking-widest mix-blend-difference text-white">
+                HP {player?.hp}
               </div>
             </div>
           </div>
 
           {/* Opponent Stats */}
-          <div className="space-y-2 md:space-y-4 text-right">
+          <div className="space-y-1 md:space-y-4 text-right">
             <div className="flex justify-between items-end flex-row-reverse">
-              <div className="flex items-center gap-2 md:gap-3 flex-row-reverse">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-red-600 rounded-xl flex items-center justify-center font-black italic text-lg md:text-xl">
-                  {currentRoom?.mode === 'ai' ? <Bot className="w-5 h-5 md:w-6 md:h-6" /> : 'P2'}
+              <div className="flex items-center gap-1.5 md:gap-3 flex-row-reverse">
+                <div className="w-8 h-8 md:w-12 md:h-12 bg-red-600 rounded-lg md:rounded-xl flex items-center justify-center font-black italic text-sm md:text-xl shadow-[0_0_20px_rgba(220,38,38,0.4)]">
+                  {currentRoom?.mode === 'ai' ? <Bot className="w-4 h-4 md:w-6 md:h-6" /> : 'P2'}
                 </div>
                 <div>
-                  <div className="text-[10px] md:text-xs font-black text-slate-500 uppercase tracking-widest">Opponent</div>
-                  <div className="text-lg md:text-xl font-black italic uppercase tracking-tighter">{opponent?.name}</div>
+                  <div className="text-[8px] md:text-xs font-black text-slate-500 uppercase tracking-widest">Opponent</div>
+                  <div className="text-xs md:text-xl font-black italic uppercase tracking-tighter truncate max-w-[60px] md:max-w-none">{opponent?.name}</div>
                 </div>
               </div>
               <div className="text-left">
-                <div className="text-[10px] font-black text-slate-500 uppercase">Score</div>
-                <div className="text-xl md:text-2xl font-black italic text-red-500">{opponent?.score}</div>
+                <div className="text-[8px] md:text-[10px] font-black text-slate-500 uppercase">Score</div>
+                <div className="text-sm md:text-2xl font-black italic text-red-500">{opponent?.score}</div>
               </div>
             </div>
-            <div className="relative h-3 md:h-4 bg-slate-900 rounded-full border border-slate-800 overflow-hidden">
+            <div className="relative h-2.5 md:h-6 bg-slate-900 rounded-full border border-slate-800 overflow-hidden shadow-inner">
               <motion.div 
                 initial={{ width: '100%' }}
                 animate={{ width: `${opponent?.hp}%` }}
-                className="absolute top-0 right-0 h-full bg-gradient-to-l from-red-500 to-orange-400"
+                className={cn(
+                  "absolute top-0 right-0 h-full transition-colors duration-500",
+                  (opponent?.hp || 0) > 50 ? "bg-gradient-to-l from-red-500 to-orange-400" : 
+                  (opponent?.hp || 0) > 20 ? "bg-gradient-to-l from-red-600 to-orange-500" : 
+                  "bg-gradient-to-l from-red-900 to-red-700"
+                )}
               />
-              <div className="absolute inset-0 flex items-center justify-center text-[8px] md:text-[10px] font-black uppercase tracking-widest mix-blend-difference">
-                HP {opponent?.hp}/100
+              <div className="absolute inset-0 flex items-center justify-center text-[6px] md:text-xs font-black uppercase tracking-widest mix-blend-difference text-white">
+                HP {opponent?.hp}
               </div>
             </div>
           </div>
         </div>
 
         {/* Main Battle Area */}
-        <div className="max-w-4xl mx-auto relative">
+        <div className="max-w-4xl mx-auto w-full relative flex-1 flex flex-col justify-center">
           {/* Question Card */}
           <motion.div 
             key={currentQuestionIndex}
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="bg-slate-900 border border-slate-800 rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 relative overflow-hidden"
+            className="bg-slate-900 border border-slate-800 rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 relative overflow-hidden shadow-2xl"
           >
             <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-800">
               <motion.div 
+                key={`timer-${currentQuestionIndex}`}
                 initial={{ width: '100%' }}
                 animate={{ width: '0%' }}
                 transition={{ duration: 15, ease: 'linear' }}
-                className="h-full bg-cyan-500"
+                className="h-full bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]"
               />
             </div>
 
             <div className="flex justify-between items-center mb-6 md:mb-8">
               <span className="text-[10px] md:text-xs font-black text-slate-500 uppercase tracking-[0.2em] md:tracking-[0.3em]">Question {currentQuestionIndex + 1}/10</span>
-              <div className="flex items-center gap-2 text-cyan-400 font-mono font-black text-lg md:text-xl">
+              <div className={cn(
+                "flex items-center gap-2 font-mono font-black text-lg md:text-xl transition-colors",
+                timeLeft <= 5 ? "text-red-500 animate-pulse" : "text-cyan-400"
+              )}>
                 <Timer className="w-4 h-4 md:w-5 md:h-5" /> {timeLeft}s
               </div>
             </div>
 
-            <h3 className="text-xl md:text-3xl font-bold leading-tight mb-8 md:mb-12 text-center">
+            <h3 className="text-xl md:text-3xl font-bold leading-tight mb-8 md:mb-12 text-center text-slate-100">
               {currentQuestion.question}
             </h3>
 
@@ -609,16 +686,19 @@ export default function ArenaPage() {
                   onClick={() => submitAnswer(option)}
                   disabled={!!selectedAnswer}
                   className={cn(
-                    "p-4 md:p-6 rounded-2xl border-2 text-left font-bold transition-all flex items-center gap-3 md:gap-4",
+                    "p-4 md:p-6 rounded-2xl border-2 text-left font-bold transition-all flex items-center gap-3 md:gap-4 group relative overflow-hidden",
                     selectedAnswer === option 
                       ? (isCorrect ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" : "bg-red-500/20 border-red-500 text-red-400")
-                      : (selectedAnswer && option === currentQuestion.correctAnswer ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" : "bg-slate-800 border-slate-700 hover:border-slate-500")
+                      : (selectedAnswer && option === currentQuestion.correctAnswer ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" : "bg-slate-800 border-slate-700 hover:border-cyan-500/50 hover:bg-slate-800/80")
                   )}
                 >
-                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-slate-700 flex items-center justify-center text-[10px] md:text-xs font-black uppercase">
+                  <div className={cn(
+                    "w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center text-xs md:text-sm font-black uppercase transition-colors",
+                    selectedAnswer === option ? "bg-current text-slate-950" : "bg-slate-700 text-slate-400 group-hover:bg-cyan-500 group-hover:text-white"
+                  )}>
                     {String.fromCharCode(65 + idx)}
                   </div>
-                  <span className="text-sm md:text-base">{option}</span>
+                  <span className="text-sm md:text-lg flex-1">{option}</span>
                 </button>
               ))}
             </div>
@@ -626,17 +706,21 @@ export default function ArenaPage() {
 
           {/* Battle Log */}
           <div className="mt-8 flex justify-center">
-            <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl px-6 py-3 flex items-center gap-4">
-              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-r border-slate-800 pr-4">Battle Log</div>
-              <div className="flex gap-4 overflow-hidden">
+            <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800/50 rounded-2xl px-6 py-4 flex items-center gap-4 max-w-full overflow-hidden shadow-xl">
+              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-r border-slate-800 pr-4 shrink-0">Battle Log</div>
+              <div className="flex gap-6 overflow-hidden">
                 <AnimatePresence mode="popLayout">
                   {battleLog.map((log, i) => (
                     <motion.span 
                       key={log + i}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      className="text-xs font-bold italic text-slate-400 whitespace-nowrap"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className={cn(
+                        "text-xs font-bold italic whitespace-nowrap",
+                        log.includes('chính xác') ? "text-emerald-400" : 
+                        log.includes('trúng đòn') ? "text-red-400" : "text-slate-400"
+                      )}
                     >
                       {log}
                     </motion.span>
@@ -651,16 +735,20 @@ export default function ArenaPage() {
   }
 
   if (gameState === 'result' && currentRoom) {
-    const winner = [...currentRoom.players].sort((a, b) => b.score - a.score)[0];
+    const allParticipants = [...currentRoom.players];
+    if (currentRoom.mode === 'ai' && currentRoom.ai) {
+      allParticipants.push(currentRoom.ai);
+    }
+    const sortedParticipants = allParticipants.sort((a, b) => b.score - a.score);
     
     return (
       <div className="min-h-screen bg-slate-950 text-white p-6 flex items-center justify-center">
         <motion.div 
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="max-w-xl w-full bg-slate-900 border border-slate-800 rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 text-center"
+          className="max-w-xl w-full bg-slate-900 border border-slate-800 rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 text-center shadow-2xl"
         >
-          <div className="w-20 h-20 md:w-24 md:h-24 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-6 md:mb-8">
+          <div className="w-20 h-20 md:w-24 md:h-24 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-6 md:mb-8 shadow-[0_0_30px_rgba(234,179,8,0.3)]">
             <Trophy className="w-10 h-10 md:w-12 md:h-12 text-yellow-500" />
           </div>
           
@@ -668,16 +756,24 @@ export default function ArenaPage() {
           <p className="text-slate-500 font-mono text-[10px] md:text-sm uppercase tracking-widest mb-8 md:mb-12">Final Standings</p>
 
           <div className="space-y-3 md:space-y-4 mb-8 md:mb-12">
-            {[...currentRoom.players].sort((a, b) => b.score - a.score).map((p, i) => (
-              <div key={p.id} className={cn(
-                "p-4 md:p-6 rounded-2xl md:rounded-3xl flex items-center justify-between",
-                i === 0 ? "bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/50" : "bg-slate-800/50 border border-slate-700"
+            {sortedParticipants.map((p, i) => (
+              <div key={p.id || 'ai'} className={cn(
+                "p-4 md:p-6 rounded-2xl md:rounded-3xl flex items-center justify-between transition-all",
+                i === 0 ? "bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/50 shadow-lg" : "bg-slate-800/50 border border-slate-700"
               )}>
                 <div className="flex items-center gap-3 md:gap-4">
-                  <div className="text-xl md:text-2xl font-black italic text-slate-500">#{i + 1}</div>
+                  <div className={cn(
+                    "text-xl md:text-2xl font-black italic",
+                    i === 0 ? "text-yellow-500" : "text-slate-500"
+                  )}>#{i + 1}</div>
                   <div className="text-left">
-                    <div className="font-black uppercase italic text-sm md:text-base">{p.name}</div>
-                    <div className="text-[8px] md:text-[10px] text-slate-500 font-bold uppercase">Level Up +250 XP</div>
+                    <div className="font-black uppercase italic text-sm md:text-base flex items-center gap-2">
+                      {p.name}
+                      {p.id === 'ai' && <Bot className="w-3 h-3 text-red-400" />}
+                    </div>
+                    <div className="text-[8px] md:text-[10px] text-slate-500 font-bold uppercase">
+                      {i === 0 ? "Winner • +250 XP" : "Participant • +50 XP"}
+                    </div>
                   </div>
                 </div>
                 <div className="text-xl md:text-2xl font-black italic text-cyan-400">{p.score}</div>
@@ -687,7 +783,7 @@ export default function ArenaPage() {
 
           <button 
             onClick={() => setGameState('lobby')}
-            className="w-full bg-white text-slate-950 font-black py-4 md:py-5 rounded-2xl md:rounded-3xl text-lg md:text-xl uppercase tracking-tighter hover:bg-cyan-50 transition-colors"
+            className="w-full bg-white text-slate-950 font-black py-4 md:py-5 rounded-2xl md:rounded-3xl text-lg md:text-xl uppercase tracking-tighter hover:bg-cyan-50 transition-all active:scale-95 shadow-lg"
           >
             RETURN TO LOBBY
           </button>

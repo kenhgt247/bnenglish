@@ -24,14 +24,15 @@ async function startServer() {
   io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
 
-    socket.on("create_room", ({ grade, mode, type }) => {
+    socket.on("create_room", ({ grade, mode, type, playerName }) => {
       const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
       const room = {
         id: roomId,
         grade,
         mode, // 'ai' or 'pvp'
         type, // '1v1', '2v2'
-        players: [{ id: socket.id, name: `Player ${socket.id.substring(0, 4)}`, score: 0, hp: 100 }],
+        players: [{ id: socket.id, name: playerName || `Player ${socket.id.substring(0, 4)}`, score: 0, hp: 100, ready: mode === 'ai' }],
+        ai: mode === 'ai' ? { name: 'Gemini AI', hp: 100, score: 0 } : null,
         status: 'waiting',
         questions: []
       };
@@ -41,16 +42,35 @@ async function startServer() {
       io.emit("update_rooms", Array.from(rooms.values()).filter(r => r.status === 'waiting'));
     });
 
-    socket.on("join_room", (roomId) => {
+    socket.on("join_room", ({ roomId, playerName }) => {
       const room = rooms.get(roomId);
       if (room && room.status === 'waiting') {
-        room.players.push({ id: socket.id, name: `Player ${socket.id.substring(0, 4)}`, score: 0, hp: 100 });
-        socket.join(roomId);
-        io.to(roomId).emit("room_updated", room);
-        
-        // Start game if full
-        if (room.mode === 'pvp' && room.players.length >= (room.type === '1v1' ? 2 : 4)) {
-          io.to(roomId).emit("request_questions", { roomId, grade: room.grade });
+        if (room.mode === 'pvp' && room.players.length < (room.type === '1v1' ? 2 : 4)) {
+          room.players.push({ id: socket.id, name: playerName || `Player ${socket.id.substring(0, 4)}`, score: 0, hp: 100, ready: false });
+          socket.join(roomId);
+          io.to(roomId).emit("room_updated", room);
+        } else if (room.mode === 'ai') {
+          socket.emit("error", "AI Arena is private.");
+        }
+      }
+    });
+
+    socket.on("toggle_ready", (roomId) => {
+      const room = rooms.get(roomId);
+      if (room && room.status === 'waiting') {
+        const player = room.players.find(p => p.id === socket.id);
+        if (player) {
+          player.ready = !player.ready;
+          io.to(roomId).emit("room_updated", room);
+
+          // Start game if all ready and full
+          const allReady = room.players.every(p => p.ready);
+          const isFull = room.players.length >= (room.type === '1v1' ? 2 : 4);
+          if (allReady && isFull) {
+            room.status = 'playing';
+            io.to(roomId).emit("request_questions", { roomId, grade: room.grade });
+            io.emit("update_rooms", Array.from(rooms.values()).filter(r => r.status === 'waiting'));
+          }
         }
       }
     });
@@ -58,7 +78,9 @@ async function startServer() {
     socket.on("start_ai_battle", (roomId) => {
       const room = rooms.get(roomId);
       if (room && room.mode === 'ai') {
+        room.status = 'playing';
         io.to(roomId).emit("request_questions", { roomId, grade: room.grade });
+        io.emit("update_rooms", Array.from(rooms.values()).filter(r => r.status === 'waiting'));
       }
     });
 
@@ -84,15 +106,38 @@ async function startServer() {
 
       if (isCorrect) {
         player.score += Math.max(10, 20 - Math.floor(timeTaken / 1000));
+        if (room.mode === 'ai' && room.ai) {
+          room.ai.hp -= 15;
+          io.to(roomId).emit("player_action", { playerId: 'ai', isCorrect: false, hp: room.ai.hp, score: room.ai.score });
+        } else {
+          // In PVP, damage other players
+          room.players.forEach(p => {
+            if (p.id !== socket.id) {
+              p.hp -= 15;
+              io.to(roomId).emit("player_action", { playerId: p.id, isCorrect: false, hp: p.hp, score: p.score });
+            }
+          });
+        }
       } else {
-        player.hp -= 10;
+        player.hp -= 15;
+        if (room.mode === 'ai' && room.ai) {
+          room.ai.score += 10;
+          io.to(roomId).emit("player_action", { playerId: 'ai', isCorrect: true, hp: room.ai.hp, score: room.ai.score });
+        }
       }
 
       io.to(roomId).emit("player_action", { playerId: socket.id, isCorrect, hp: player.hp, score: player.score });
 
-      // Check if game over or next question
+      // Check if game over
       if (player.hp <= 0) {
-        endGame(roomId, `Player ${player.name} was defeated!`);
+        endGame(roomId, `${player.name} bị đánh bại!`);
+      } else if (room.mode === 'ai' && room.ai && room.ai.hp <= 0) {
+        endGame(roomId, `Gemini AI đã bị đánh bại!`);
+      } else {
+        // Check if all players have answered or if it's AI mode
+        // For simplicity, we move to next question in client side logic, 
+        // but here we just update the index if needed.
+        // Actually, the client handles the index increment.
       }
     });
 

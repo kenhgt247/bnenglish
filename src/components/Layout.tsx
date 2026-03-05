@@ -4,10 +4,17 @@ import { useAuthStore } from '../store/useAuthStore';
 import { auth } from '../lib/firebase';
 import { signOut } from 'firebase/auth';
 import toast from 'react-hot-toast';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 
 export default function Layout() {
   const { user, profile } = useAuthStore();
   const navigate = useNavigate();
+  const isArena = window.location.pathname === '/arena';
 
   const handleLogout = async () => {
     try {
@@ -21,104 +28,113 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col">
-      <header className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 text-blue-600 font-bold text-xl">
-            <BookOpen className="w-6 h-6" />
-            <span>BNEnglish</span>
-          </Link>
-          
-          <nav className="hidden md:flex items-center gap-6">
-            <Link to="/" className="text-slate-600 hover:text-blue-600 font-medium flex items-center gap-1">
-              <Home className="w-4 h-4" /> Trang chủ
+      {!isArena && (
+        <header className="bg-white shadow-sm sticky top-0 z-10">
+          <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+            <Link to="/" className="flex items-center gap-2 text-blue-600 font-bold text-xl">
+              <BookOpen className="w-6 h-6" />
+              <span>BNEnglish</span>
             </Link>
-            <Link to="/teacher" className="text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1">
-              <Sparkles className="w-4 h-4" /> Thầy AI
-            </Link>
-            <Link to="/dictionary" className="text-slate-600 hover:text-blue-600 font-medium flex items-center gap-1">
-              <BookOpen className="w-4 h-4" /> Từ điển
-            </Link>
-            <Link to="/arena" className="text-purple-600 hover:text-purple-700 font-semibold flex items-center gap-1">
-              <Swords className="w-4 h-4" /> Đấu trường
-            </Link>
-            {user && (
-              <>
-                <Link to="/dashboard" className="text-slate-600 hover:text-blue-600 font-medium flex items-center gap-1">
-                  <Activity className="w-4 h-4" /> Tiến độ
-                </Link>
-                <Link to="/profile" className="text-slate-600 hover:text-blue-600 font-medium flex items-center gap-1">
-                  <User className="w-4 h-4" /> Cá nhân
-                </Link>
-              </>
-            )}
-            {profile?.role === 'admin' && (
-              <Link to="/admin" className="text-slate-600 hover:text-blue-600 font-medium flex items-center gap-1">
-                <Settings className="w-4 h-4" /> Admin
+            
+            <nav className="hidden md:flex items-center gap-6">
+              <Link to="/" className="text-slate-600 hover:text-blue-600 font-medium flex items-center gap-1">
+                <Home className="w-4 h-4" /> Trang chủ
               </Link>
-            )}
-          </nav>
-
-          <div className="flex items-center gap-4">
-            {user ? (
-              <div className="flex items-center gap-4">
-                <Link to="/profile" className="p-2 text-slate-400 hover:text-blue-600 transition-colors" title="Cá nhân">
-                  <User className="w-5 h-5" />
+              <Link to="/teacher" className="text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1">
+                <Sparkles className="w-4 h-4" /> Thầy AI
+              </Link>
+              <Link to="/dictionary" className="text-slate-600 hover:text-blue-600 font-medium flex items-center gap-1">
+                <BookOpen className="w-4 h-4" /> Từ điển
+              </Link>
+              <Link to="/arena" className="text-purple-600 hover:text-purple-700 font-semibold flex items-center gap-1">
+                <Swords className="w-4 h-4" /> Đấu trường
+              </Link>
+              {user && (
+                <>
+                  <Link to="/dashboard" className="text-slate-600 hover:text-blue-600 font-medium flex items-center gap-1">
+                    <Activity className="w-4 h-4" /> Tiến độ
+                  </Link>
+                  <Link to="/profile" className="text-slate-600 hover:text-blue-600 font-medium flex items-center gap-1">
+                    <User className="w-4 h-4" /> Cá nhân
+                  </Link>
+                </>
+              )}
+              {profile?.role === 'admin' && (
+                <Link to="/admin" className="text-slate-600 hover:text-blue-600 font-medium flex items-center gap-1">
+                  <Settings className="w-4 h-4" /> Admin
                 </Link>
-                <button 
-                  onClick={handleLogout}
-                  className="p-2 text-slate-400 hover:text-red-500 transition-colors"
-                  title="Đăng xuất"
+              )}
+            </nav>
+
+            <div className="flex items-center gap-4">
+              {user ? (
+                <div className="flex items-center gap-4">
+                  <Link to="/profile" className="p-2 text-slate-400 hover:text-blue-600 transition-colors" title="Cá nhân">
+                    <User className="w-5 h-5" />
+                  </Link>
+                  <button 
+                    onClick={handleLogout}
+                    className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                    title="Đăng xuất"
+                  >
+                    <LogOut className="w-5 h-5" />
+                  </button>
+                </div>
+              ) : (
+                <Link 
+                  to="/login" 
+                  className="bg-blue-100 text-blue-700 hover:bg-blue-200 px-4 py-2 rounded-full font-medium transition-colors text-sm"
                 >
-                  <LogOut className="w-5 h-5" />
-                </button>
-              </div>
-            ) : (
-              <Link 
-                to="/login" 
-                className="bg-blue-100 text-blue-700 hover:bg-blue-200 px-4 py-2 rounded-full font-medium transition-colors text-sm"
-              >
-                Đăng nhập
-              </Link>
-            )}
+                  Đăng nhập
+                </Link>
+              )}
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
-      <main className="flex-1 max-w-5xl mx-auto w-full p-4 md:p-6 pb-20 md:pb-6">
+      <main className={cn(
+        "flex-1 w-full",
+        isArena ? "max-w-none p-0 pb-0" : "max-w-5xl mx-auto p-4 md:p-6 pb-20 md:pb-6"
+      )}>
         <Outlet />
       </main>
 
-      <footer className="bg-white border-t border-slate-200 py-6 mt-auto hidden md:block">
-        <div className="max-w-5xl mx-auto px-4 text-center text-slate-500 text-sm flex flex-col sm:flex-row justify-between items-center gap-4">
-          <p>© 2026 BNEnglish. Học tiếng Anh cùng Bảo Nam.</p>
-          {profile?.role === 'admin' && (
-            <Link to="/seed" className="flex items-center gap-1 text-slate-400 hover:text-blue-500">
-              <Database className="w-4 h-4" /> Seed Data
-            </Link>
-          )}
-        </div>
-      </footer>
+      {!isArena && (
+        <footer className="bg-white border-t border-slate-200 py-6 mt-auto hidden md:block">
+          <div className="max-w-5xl mx-auto px-4 text-center text-slate-500 text-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+            <p>© 2026 BNEnglish. Học tiếng Anh cùng Bảo Nam.</p>
+            {profile?.role === 'admin' && (
+              <Link to="/seed" className="flex items-center gap-1 text-slate-400 hover:text-blue-500">
+                <Database className="w-4 h-4" /> Seed Data
+              </Link>
+            )}
+          </div>
+        </footer>
+      )}
 
       {/* Mobile Footer Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-20 flex justify-around p-2 text-xs text-slate-600">
-        <Link to="/" className="flex flex-col items-center gap-1 p-2">
-          <Home className="w-5 h-5" /> Trang chủ
-        </Link>
-        <Link to="/teacher" className="flex flex-col items-center gap-1 p-2">
-          <Sparkles className="w-5 h-5" /> Thầy AI
-        </Link>
-        <Link to="/dictionary" className="flex flex-col items-center gap-1 p-2">
-          <BookOpen className="w-5 h-5" /> Từ điển
-        </Link>
-        <Link to="/arena" className="flex flex-col items-center gap-1 p-2">
-          <Swords className="w-5 h-5" /> Đấu trường
-        </Link>
-        {user && (
-          <Link to="/dashboard" className="flex flex-col items-center gap-1 p-2">
-            <Activity className="w-5 h-5" /> Tiến độ
+      {!isArena && (
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-20 flex justify-around p-2 text-xs text-slate-600">
+          <Link to="/" className="flex flex-col items-center gap-1 p-2">
+            <Home className="w-5 h-5" /> Trang chủ
           </Link>
-        )}
-      </nav>
+          <Link to="/teacher" className="flex flex-col items-center gap-1 p-2">
+            <Sparkles className="w-5 h-5" /> Thầy AI
+          </Link>
+          <Link to="/dictionary" className="flex flex-col items-center gap-1 p-2">
+            <BookOpen className="w-5 h-5" /> Từ điển
+          </Link>
+          <Link to="/arena" className="flex flex-col items-center gap-1 p-2">
+            <Swords className="w-5 h-5" /> Đấu trường
+          </Link>
+          {user && (
+            <Link to="/dashboard" className="flex flex-col items-center gap-1 p-2">
+              <Activity className="w-5 h-5" /> Tiến độ
+            </Link>
+          )}
+        </nav>
+      )}
     </div>
   );
 }

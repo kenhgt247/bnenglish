@@ -18,6 +18,7 @@ import AdminPage from './pages/AdminPage';
 import SeedPage from './pages/SeedPage';
 import AITeacherPage from './pages/AITeacherPage';
 import ArenaPage from './pages/ArenaPage';
+import ProfilePage from './pages/ProfilePage';
 import SpeakingPage from './features/practice/speaking/SpeakingPage';
 import ListeningPage from './features/practice/listening/ListeningPage';
 import SpellingPage from './features/practice/spelling/SpellingPage';
@@ -49,6 +50,7 @@ function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />
           <Route path="login" element={<Login />} />
+          <Route path="profile" element={<ProfilePage />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="grade/:gradeId" element={<GradePage />} />
           <Route path="grade/:gradeId/unit/:unitId" element={<UnitPage />} />

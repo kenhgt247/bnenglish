@@ -5,10 +5,12 @@ import { db } from '../lib/firebase';
 import { Grade } from '../types';
 import { GraduationCap, BookOpen, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useAuthStore } from '../store/useAuthStore';
 
 export default function Home() {
   const [grades, setGrades] = useState<Grade[]>([]);
   const [loading, setLoading] = useState(true);
+  const { profile } = useAuthStore();
 
   useEffect(() => {
     const fetchGrades = async () => {
@@ -54,7 +56,9 @@ export default function Home() {
         <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-300">
           <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
           <p className="text-slate-500 font-medium">Chưa có dữ liệu lớp học.</p>
-          <Link to="/seed" className="text-blue-500 hover:underline mt-2 inline-block">Chạy Seed Data</Link>
+          {profile?.role === 'admin' && (
+            <Link to="/seed" className="text-blue-500 hover:underline mt-2 inline-block">Chạy Seed Data</Link>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

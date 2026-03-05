@@ -52,8 +52,14 @@ export function useSpeechRecognition() {
       setIsListening(true);
       try {
         recognition.start();
-      } catch (e) {
-        console.error(e);
+      } catch (e: any) {
+        console.error('Speech recognition start error:', e);
+        // If it fails because it's already started, we can ignore it
+        if (e.name === 'DOMException' && e.message.includes('already started')) {
+          return;
+        }
+        setIsListening(false);
+        toast.error('Không thể khởi động nhận diện giọng nói. Vui lòng kiểm tra Micro.');
       }
     }
   }, [recognition]);

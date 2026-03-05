@@ -39,9 +39,14 @@ export default function Layout() {
               <Swords className="w-4 h-4" /> Đấu trường
             </Link>
             {user && (
-              <Link to="/dashboard" className="text-slate-600 hover:text-blue-600 font-medium flex items-center gap-1">
-                <User className="w-4 h-4" /> Tiến độ
-              </Link>
+              <>
+                <Link to="/dashboard" className="text-slate-600 hover:text-blue-600 font-medium flex items-center gap-1">
+                  <User className="w-4 h-4" /> Tiến độ
+                </Link>
+                <Link to="/profile" className="text-slate-600 hover:text-blue-600 font-medium flex items-center gap-1">
+                  <User className="w-4 h-4" /> Cá nhân
+                </Link>
+              </>
             )}
             {profile?.role === 'admin' && (
               <Link to="/admin" className="text-slate-600 hover:text-blue-600 font-medium flex items-center gap-1">
@@ -83,9 +88,11 @@ export default function Layout() {
       <footer className="bg-white border-t border-slate-200 py-6 mt-auto">
         <div className="max-w-5xl mx-auto px-4 text-center text-slate-500 text-sm flex flex-col sm:flex-row justify-between items-center gap-4">
           <p>© 2026 BNEnglish. Học tiếng Anh cùng Bảo Nam.</p>
-          <Link to="/seed" className="flex items-center gap-1 text-slate-400 hover:text-blue-500">
-            <Database className="w-4 h-4" /> Seed Data
-          </Link>
+          {profile?.role === 'admin' && (
+            <Link to="/seed" className="flex items-center gap-1 text-slate-400 hover:text-blue-500">
+              <Database className="w-4 h-4" /> Seed Data
+            </Link>
+          )}
         </div>
       </footer>
     </div>

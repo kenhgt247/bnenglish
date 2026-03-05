@@ -11,6 +11,8 @@ export interface User {
   streakCount?: number;
   lastActiveDate?: string;
   leaderboardOptOut?: boolean;
+  age?: number;
+  grade?: string;
 }
 
 export interface Grade {

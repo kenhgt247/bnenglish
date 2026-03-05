@@ -25,7 +25,7 @@ export default function SpeakingPage() {
   const [diff, setDiff] = useState<{ token: string; status: string }[]>([]);
   const [startTime, setStartTime] = useState<number>(0);
 
-  const { isSupported, isListening, transcript, startListening, stopListening } = useSpeechRecognition();
+  const { isSupported, isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const { speak } = useTTS();
 
   useEffect(() => {
@@ -49,7 +49,17 @@ export default function SpeakingPage() {
 
   useEffect(() => {
     setStartTime(Date.now());
-  }, [currentIndex]);
+    resetTranscript();
+  }, [currentIndex, resetTranscript]);
+
+  useEffect(() => {
+    if (score !== null && currentIndex < words.length - 1) {
+      const timer = setTimeout(() => {
+        nextWord();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [score, currentIndex, words.length]);
 
   const currentWord = words[currentIndex];
   const targetText = mode === 'word' ? currentWord?.word : currentWord?.example_en || currentWord?.word;
@@ -61,13 +71,18 @@ export default function SpeakingPage() {
   const handleRecord = () => {
     if (isListening) {
       stopListening();
-      evaluateTranscript(transcript);
     } else {
       setScore(null);
       setDiff([]);
       startListening();
     }
   };
+
+  useEffect(() => {
+    if (!isListening && transcript && score === null) {
+      evaluateTranscript(transcript);
+    }
+  }, [isListening, transcript, score]);
 
   const evaluateTranscript = async (finalTranscript: string) => {
     if (!targetText || !finalTranscript) return;
@@ -185,10 +200,14 @@ export default function SpeakingPage() {
               ))}
             </div>
 
-            {currentIndex < words.length - 1 && (
+            {currentIndex < words.length - 1 ? (
               <button onClick={nextWord} className="mt-6 px-8 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors">
                 Tiếp tục
               </button>
+            ) : (
+              <Link to={`/grade/${gradeId}/unit/${unitId}/lesson/${lessonId}`} className="mt-6 inline-block px-8 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors">
+                Hoàn thành
+              </Link>
             )}
           </div>
         )}

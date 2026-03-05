@@ -15,7 +15,7 @@ export function useSpeechRecognition() {
     }
 
     const recog = new SpeechRecognition();
-    recog.continuous = false;
+    recog.continuous = true;
     recog.interimResults = true;
     recog.lang = 'en-US';
 
@@ -28,9 +28,13 @@ export function useSpeechRecognition() {
     };
 
     recog.onerror = (event: any) => {
-      console.error('Speech recognition error', event.error);
-      if (event.error === 'not-allowed') {
-        toast.error('Vui lòng cấp quyền sử dụng Micro cho trình duyệt.');
+      if (event.error === 'no-speech') {
+        toast.error('Không nghe thấy gì, vui lòng thử lại.');
+      } else {
+        console.error('Speech recognition error', event.error);
+        if (event.error === 'not-allowed') {
+          toast.error('Vui lòng cấp quyền sử dụng Micro cho trình duyệt.');
+        }
       }
       setIsListening(false);
     };
@@ -61,5 +65,9 @@ export function useSpeechRecognition() {
     }
   }, [recognition]);
 
-  return { isSupported, isListening, transcript, startListening, stopListening };
+  const resetTranscript = useCallback(() => {
+    setTranscript('');
+  }, []);
+
+  return { isSupported, isListening, transcript, startListening, stopListening, resetTranscript };
 }

@@ -45,10 +45,10 @@ export default function Home() {
     <div className="space-y-8">
       <div className="text-center max-w-2xl mx-auto py-8">
         <h1 className="text-4xl font-extrabold text-slate-800 mb-4 tracking-tight">
-          Học Tiếng Anh <span className="text-blue-500">Dễ Dàng Cùng Bảo Nam </span>
+         Bảo Nam <span className="text-blue-500">Chinh Phục Tiếng Anh Dễ Dàng </span>
         </h1>
         <p className="text-lg text-slate-500">
-          Chọn lớp học của bạn để bắt đầu hành trình chinh phục từ vựng với phương pháp lặp lại ngắt quãng (SRS).
+          Chọn lớp học Nam thối ơi để bắt đầu hành trình chinh phục từ vựng với phương pháp lặp lại ngắt quãng (SRS).
         </p>
       </div>
 

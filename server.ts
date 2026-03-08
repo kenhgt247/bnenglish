@@ -25,6 +25,7 @@ async function startServer() {
     console.log("User connected:", socket.id);
 
     socket.on("create_room", ({ grade, mode, type, playerName }) => {
+      console.log("create_room received:", { grade, mode, type, playerName });
       const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
       const room = {
         id: roomId,
@@ -38,6 +39,7 @@ async function startServer() {
       };
       rooms.set(roomId, room);
       socket.join(roomId);
+      console.log("Room created:", roomId);
       socket.emit("room_created", room);
       io.emit("update_rooms", Array.from(rooms.values()).filter(r => r.status === 'waiting'));
     });
@@ -91,6 +93,7 @@ async function startServer() {
         room.questions = questions;
         room.currentQuestionIndex = 0;
         io.to(roomId).emit("game_started", { questions: room.questions });
+        io.emit("update_rooms", Array.from(rooms.values()).filter(r => r.status === 'waiting'));
       }
     });
 
@@ -110,7 +113,6 @@ async function startServer() {
           room.ai.hp -= 15;
           io.to(roomId).emit("player_action", { playerId: 'ai', isCorrect: false, hp: room.ai.hp, score: room.ai.score });
         } else {
-          // In PVP, damage other players
           room.players.forEach(p => {
             if (p.id !== socket.id) {
               p.hp -= 15;
@@ -128,22 +130,16 @@ async function startServer() {
 
       io.to(roomId).emit("player_action", { playerId: socket.id, isCorrect, hp: player.hp, score: player.score });
 
-      // Check if game over
       if (player.hp <= 0) {
         endGame(roomId, `${player.name} bị đánh bại!`);
       } else if (room.mode === 'ai' && room.ai && room.ai.hp <= 0) {
         endGame(roomId, `Gemini AI đã bị đánh bại!`);
-      } else {
-        // Check if all players have answered or if it's AI mode
-        // For simplicity, we move to next question in client side logic, 
-        // but here we just update the index if needed.
-        // Actually, the client handles the index increment.
       }
     });
 
-    const leaveRoom = (socketId: string) => {
+    const leaveRoom = (socketId) => {
       for (const [roomId, room] of rooms.entries()) {
-        const playerIndex = room.players.findIndex((p: any) => p.id === socketId);
+        const playerIndex = room.players.findIndex((p) => p.id === socketId);
         if (playerIndex !== -1) {
           room.players.splice(playerIndex, 1);
           if (room.players.length === 0) {
@@ -154,7 +150,7 @@ async function startServer() {
               endGame(roomId, "A player has left the battle.");
             }
           }
-          io.emit("update_rooms", Array.from(rooms.values()).filter((r: any) => r.status === 'waiting'));
+          io.emit("update_rooms", Array.from(rooms.values()).filter((r) => r.status === 'waiting'));
           break;
         }
       }
@@ -178,7 +174,6 @@ async function startServer() {
     rooms.delete(roomId);
   }
 
-  // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },

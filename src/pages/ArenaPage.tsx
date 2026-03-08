@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Trophy, Users, User, Bot, Swords, Shield, Zap, Heart, Timer, Send, MessageSquare, ChevronRight, Play, Plus, Share2, LogOut, Loader2, CheckCircle2, Circle } from 'lucide-react';
+import { Trophy, Users, User, Bot, Swords, Shield, Zap, Heart, Timer, LogOut, Loader2, CheckCircle2, Share2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { clsx, type ClassValue } from 'clsx';
@@ -42,11 +42,6 @@ export default function ArenaPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
   const currentRoomRef = useRef<Room | null>(null);
-
-  useEffect(() => {
-    currentRoomRef.current = currentRoom;
-  }, [currentRoom]);
-
   const [gameState, setGameState] = useState<'lobby' | 'room' | 'battle' | 'result'>('lobby');
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -54,82 +49,62 @@ export default function ArenaPage() {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [battleLog, setBattleLog] = useState<string[]>([]);
-  const [showExplanation, setShowExplanation] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCopySuccess, setShowCopySuccess] = useState(false);
   const [createOptions, setCreateOptions] = useState({ grade: '6', mode: 'ai' as 'ai' | 'pvp', type: '1v1' as '1v1' | '2v2' });
+  const [shake, setShake] = useState(false);
 
   useEffect(() => {
+    currentRoomRef.current = currentRoom;
+  }, [currentRoom]);
+
+  useEffect(() => {
+    console.log("Initializing socket...");
     const newSocket = io(window.location.origin, {
       path: '/socket.io',
       transports: ['websocket', 'polling']
     });
-    setSocket(newSocket);
+    newSocket.on("connect", () => {
+      console.log("Socket connected:", newSocket.id);
+      setSocket(newSocket);
+    });
+    newSocket.on("connect_error", (err) => {
+      console.error("Socket connection error:", err);
+    });
 
-    // Check for room ID in URL
     const urlParams = new URLSearchParams(window.location.search);
     const roomIdFromUrl = urlParams.get('room');
     if (roomIdFromUrl) {
       newSocket.emit("join_room", { roomId: roomIdFromUrl, playerName: profile?.displayName || user?.email });
     }
 
-    newSocket.on("update_rooms", (availableRooms: Room[]) => {
-      setRooms(availableRooms);
-    });
-
-    newSocket.on("room_created", (room: Room) => {
-      setCurrentRoom(room);
-      setGameState('room');
-      // Update URL with room ID
-      const url = new URL(window.location.href);
-      url.searchParams.set('room', room.id);
-      window.history.replaceState({}, '', url.toString());
-    });
-
-    newSocket.on("room_updated", (room: Room) => {
-      setCurrentRoom(room);
-    });
+    newSocket.on("update_rooms", (availableRooms: Room[]) => setRooms(availableRooms));
+    newSocket.on("room_created", (room: Room) => { setCurrentRoom(room); setGameState('room'); });
+    newSocket.on("room_updated", (room: Room) => setCurrentRoom(room));
 
     newSocket.on("request_questions", async ({ roomId, grade }: { roomId: string, grade: string }) => {
-      // Only the first player in the room generates the questions to avoid duplicates
-      // We check this by seeing if the current player's socket ID matches the first player's ID
-      // We need to use a ref or a way to get the latest room state
-      // For now, we'll just check if we are in the room
+      const currentRoom = currentRoomRef.current;
+      if (!currentRoom || currentRoom.players[0].id !== newSocket.id) return;
+
       setIsGenerating(true);
       try {
-        const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY || "";
+        const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) {
-          throw new Error("API key is missing. Please configure GEMINI_API_KEY.");
+          console.error("API key is missing in process.env.GEMINI_API_KEY");
+          throw new Error("API key is missing.");
         }
         const ai = new GoogleGenAI({ apiKey });
         const response = await ai.models.generateContent({
           model: "gemini-3-flash-preview",
-          contents: `Generate 10 English multiple choice questions for grade ${grade} students based on Vietnamese curriculum. 
-          Return JSON array of objects: { question: string, options: string[], correctAnswer: string, explanation: string }`,
-          config: { 
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  question: { type: Type.STRING },
-                  options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  correctAnswer: { type: Type.STRING },
-                  explanation: { type: Type.STRING }
-                },
-                required: ["question", "options", "correctAnswer", "explanation"]
-              }
-            }
-          }
+          contents: `Generate 10 English multiple choice questions for grade ${grade} students in Vietnam. Focus on vocabulary and grammar units from the Global Success English textbook. Return JSON array of objects: { question: string, options: string[], correctAnswer: string, explanation: string }`,
+          config: { responseMimeType: "application/json" }
         });
         
         const generatedQuestions = JSON.parse(response.text || "[]");
         newSocket.emit("set_questions", { roomId, questions: generatedQuestions });
       } catch (error) {
         console.error("Failed to generate questions:", error);
-        setBattleLog(prev => ["Lỗi khởi tạo trận đấu!", ...prev]);
       } finally {
         setIsGenerating(false);
       }
@@ -145,31 +120,16 @@ export default function ArenaPage() {
     newSocket.on("player_action", ({ playerId, isCorrect, hp, score }) => {
       setCurrentRoom(prev => {
         if (!prev) return null;
-        if (playerId === 'ai' && prev.ai) {
-          return {
-            ...prev,
-            ai: { ...prev.ai, hp, score }
-          };
-        }
-        return {
-          ...prev,
-          players: prev.players.map(p => p.id === playerId ? { ...p, hp, score } : p)
-        };
+        if (playerId === 'ai' && prev.ai) return { ...prev, ai: { ...prev.ai, hp, score } };
+        return { ...prev, players: prev.players.map(p => p.id === playerId ? { ...p, hp, score } : p) };
       });
       
-      let playerName = "Player";
-      if (playerId === 'ai') {
-        playerName = "Gemini AI";
-      } else {
-        playerName = currentRoomRef.current?.players.find(p => p.id === playerId)?.name || "Player";
-      }
+      let playerName = playerId === 'ai' ? "Gemini AI" : (currentRoomRef.current?.players.find(p => p.id === playerId)?.name || "Player");
       setBattleLog(prev => [`${playerName} ${isCorrect ? 'tấn công chính xác!' : 'bị trúng đòn!'}`, ...prev.slice(0, 4)]);
+      if (!isCorrect) setShake(true);
     });
 
-    newSocket.on("game_ended", ({ reason, players }) => {
-      setGameState('result');
-      setBattleLog(prev => [reason, ...prev]);
-    });
+    newSocket.on("game_ended", () => setGameState('result'));
 
     return () => {
       newSocket.disconnect();
@@ -177,61 +137,30 @@ export default function ArenaPage() {
   }, []);
 
   const createRoom = (grade: string, mode: 'ai' | 'pvp', type: '1v1' | '2v2' = '1v1') => {
-    socket?.emit("create_room", { grade, mode, type, playerName: profile?.displayName || user?.email });
+    console.log("createRoom called:", { grade, mode, type });
+    if (!socket) {
+      console.error("Socket not connected!");
+      return;
+    }
+    socket.emit("create_room", { grade, mode, type, playerName: profile?.displayName || user?.email });
   };
 
   const joinRoom = (roomId: string) => {
     socket?.emit("join_room", { roomId, playerName: profile?.displayName || user?.email });
-    // Update URL with room ID
-    const url = new URL(window.location.href);
-    url.searchParams.set('room', roomId);
-    window.history.replaceState({}, '', url.toString());
   };
 
-  const toggleReady = () => {
-    if (currentRoom) {
-      socket?.emit("toggle_ready", currentRoom.id);
-    }
-  };
-
-  const leaveRoom = () => {
-    socket?.emit("leave_room");
-    setGameState('lobby');
-    setCurrentRoom(null);
-    // Clear room from URL
-    const url = new URL(window.location.href);
-    url.searchParams.delete('room');
-    window.history.replaceState({}, '', url.toString());
-  };
-
-  const inviteFriends = () => {
-    if (!currentRoom) return;
-    const url = new URL(window.location.href);
-    url.searchParams.set('room', currentRoom.id);
-    navigator.clipboard.writeText(url.toString());
-    setShowCopySuccess(true);
-    setTimeout(() => setShowCopySuccess(false), 2000);
-    setBattleLog(prev => ["Đã sao chép link mời bạn bè!", ...prev]);
-  };
-
-  const startBattle = () => {
-    if (currentRoom?.mode === 'ai') {
-      socket?.emit("start_ai_battle", currentRoom.id);
-    }
-  };
+  const toggleReady = () => currentRoom && socket?.emit("toggle_ready", currentRoom.id);
+  const startBattle = () => currentRoom && socket?.emit("start_ai_battle", currentRoom.id);
+  const leaveRoom = () => { socket?.emit("leave_room"); setGameState('lobby'); setCurrentRoom(null); };
 
   const submitAnswer = (answer: string) => {
-    if (selectedAnswer || !currentRoom) return;
+    if (selectedAnswer !== null || !currentRoom) return;
     
     setSelectedAnswer(answer);
     const correct = answer === questions[currentQuestionIndex].correctAnswer;
     setIsCorrect(correct);
     
-    socket?.emit("submit_answer", { 
-      roomId: currentRoom.id, 
-      answer, 
-      timeTaken: (15 - timeLeft) * 1000 
-    });
+    socket?.emit("submit_answer", { roomId: currentRoom.id, answer, timeTaken: (15 - timeLeft) * 1000 });
 
     setTimeout(() => {
       if (currentQuestionIndex < questions.length - 1) {
@@ -244,211 +173,63 @@ export default function ArenaPage() {
   };
 
   useEffect(() => {
-    if (gameState === 'battle' && timeLeft > 0 && !selectedAnswer) {
+    if (gameState === 'battle' && timeLeft > 0 && selectedAnswer === null) {
       const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
       return () => clearInterval(timer);
-    } else if (timeLeft === 0 && !selectedAnswer) {
-      submitAnswer(""); // Timeout
+    } else if (timeLeft === 0 && selectedAnswer === null) {
+      submitAnswer("");
     }
   }, [timeLeft, gameState, selectedAnswer]);
 
+  if (isGenerating) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white p-4">
+        <div className="relative w-48 h-48 md:w-64 md:h-64 flex items-center justify-center">
+          <div className="absolute inset-0 border-4 border-cyan-500/20 rounded-full animate-ping"></div>
+          <Loader2 className="w-16 h-16 md:w-24 md:h-24 text-cyan-400 animate-spin" />
+        </div>
+        <h2 className="text-xl md:text-3xl font-black italic uppercase mt-8 tracking-widest text-center">Đang thiết lập chiến trường...</h2>
+      </div>
+    );
+  }
+
   if (gameState === 'lobby') {
     return (
-      <div className="min-h-screen bg-slate-950 text-white p-6 font-sans selection:bg-cyan-500/30">
+      <div className="min-h-screen bg-slate-950 text-white p-4 md:p-6 font-sans">
         <div className="max-w-6xl mx-auto">
-          <header className="flex justify-between items-center mb-6 md:mb-12">
-            <div>
-              <h1 className="text-3xl md:text-5xl font-black tracking-tighter italic text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 uppercase">
-                English Arena
-              </h1>
-              <p className="text-slate-400 font-mono text-[10px] md:text-sm mt-1 md:mt-2 uppercase tracking-widest">Battle for Knowledge</p>
-            </div>
-            <div className="flex gap-2">
-              <button 
-                onClick={() => window.location.href = '/'}
-                className="bg-slate-900 border border-slate-800 p-2 md:px-4 md:py-3 rounded-xl md:rounded-2xl flex items-center gap-2 text-slate-400 hover:text-white hover:border-red-500/50 transition-all"
-              >
-                <LogOut className="w-5 h-5" />
-                <span className="hidden md:inline text-xs font-bold uppercase tracking-tighter">Exit</span>
-              </button>
-            </div>
+          <header className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl md:text-4xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-600 uppercase">English Arena</h1>
+            <button onClick={() => window.location.href = '/'} className="bg-slate-900 p-2 rounded-xl text-slate-400 hover:text-white"><LogOut className="w-5 h-5" /></button>
           </header>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 pb-20">
-            <div className="lg:col-span-2 space-y-6 md:space-y-8">
-              <section>
-                <h2 className="text-[10px] md:text-xs font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                  <Swords className="w-4 h-4" /> Available Battles
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {rooms.length === 0 ? (
-                    <div className="col-span-2 border-2 border-dashed border-slate-800 rounded-2xl md:rounded-3xl p-8 md:p-12 text-center">
-                      <p className="text-slate-500 font-medium italic text-sm">No active arenas. Create your own!</p>
-                    </div>
-                  ) : (
-                    rooms.map(room => (
-                      <motion.div 
-                        key={room.id}
-                        whileHover={{ scale: 1.02 }}
-                        className="bg-slate-900 border border-slate-800 p-4 md:p-6 rounded-2xl md:rounded-3xl group cursor-pointer"
-                        onClick={() => joinRoom(room.id)}
-                      >
-                        <div className="flex justify-between items-start mb-3">
-                          <span className="bg-blue-500/10 text-blue-400 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter">
-                            Grade {room.grade}
-                          </span>
-                          <span className="text-slate-600 font-mono text-[10px]">#{room.id}</span>
-                        </div>
-                        <h3 className="text-lg md:text-xl font-black italic mb-2 uppercase group-hover:text-cyan-400 transition-colors">
-                          {room.mode === 'ai' ? 'AI Training' : 'PvP Arena'}
-                        </h3>
-                        <div className="flex items-center gap-4 text-slate-400 text-xs">
-                          <div className="flex items-center gap-1.5">
-                            <Users className="w-3 h-3" />
-                            <span>{room.players.length}/{room.type === '1v1' ? 2 : 4}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <Shield className="w-3 h-3" />
-                            <span>{room.type}</span>
-                          </div>
-                        </div>
-                      </motion.div>
-                    ))
-                  )}
-                </div>
-              </section>
-
-              <section>
-                <h2 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                  <Plus className="w-4 h-4" /> Quick Create
-                </h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {['6', '7', '8', '9'].map(grade => (
-                    <button 
-                      key={grade}
-                      onClick={() => createRoom(grade, 'ai')}
-                      className="bg-slate-900 border border-slate-800 p-4 rounded-2xl hover:border-cyan-500/50 hover:bg-slate-800/50 transition-all group"
-                    >
-                      <div className="text-2xl font-black italic mb-1 group-hover:text-cyan-400">Lớp {grade}</div>
-                      <div className="text-[10px] text-slate-500 uppercase font-bold">AI Battle</div>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            </div>
-
-            <div className="space-y-6">
-              <div className="bg-gradient-to-br from-blue-600 to-purple-700 p-8 rounded-[2.5rem] relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:scale-110 transition-transform">
-                  <Zap className="w-24 h-24 text-white fill-white" />
-                </div>
-                <h3 className="text-2xl font-black italic mb-2 uppercase leading-tight">Custom<br/>Battle Arena</h3>
-                <p className="text-blue-100/70 text-sm mb-6 font-medium">Create a custom room to challenge friends or practice with AI.</p>
-                <button 
-                  onClick={() => setShowCreateModal(true)}
-                  className="w-full bg-white text-slate-950 font-black py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-cyan-50 transition-colors"
-                >
-                  CREATE CUSTOM ROOM <Plus className="w-4 h-4" />
-                </button>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {rooms.map(room => (
+              <div key={room.id} onClick={() => joinRoom(room.id)} className="bg-slate-900 p-4 rounded-2xl border border-slate-800 cursor-pointer hover:border-cyan-500">
+                <div className="text-xs font-bold text-slate-500">Grade {room.grade} - {room.mode.toUpperCase()}</div>
+                <div className="text-lg font-black italic">{room.id}</div>
               </div>
-
-              {/* Create Room Modal */}
-              <AnimatePresence>
-                {showCreateModal && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-                    <motion.div 
-                      initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                      className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] max-w-md w-full shadow-2xl"
-                    >
-                      <h3 className="text-2xl font-black italic uppercase mb-6">Create Arena</h3>
-                      
-                      <div className="space-y-6">
-                        <div>
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Select Grade</label>
-                          <div className="grid grid-cols-4 gap-2">
-                            {['6', '7', '8', '9'].map(g => (
-                              <button 
-                                key={g}
-                                onClick={() => setCreateOptions(prev => ({ ...prev, grade: g }))}
-                                className={cn(
-                                  "py-3 rounded-xl font-black italic transition-all",
-                                  createOptions.grade === g ? "bg-cyan-500 text-white" : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                                )}
-                              >
-                                {g}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Battle Mode</label>
-                          <div className="grid grid-cols-2 gap-2">
-                            <button 
-                              onClick={() => setCreateOptions(prev => ({ ...prev, mode: 'ai' }))}
-                              className={cn(
-                                "py-4 rounded-xl font-black italic flex items-center justify-center gap-2 transition-all",
-                                createOptions.mode === 'ai' ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                              )}
-                            >
-                              <Bot className="w-4 h-4" /> AI
-                            </button>
-                            <button 
-                              onClick={() => setCreateOptions(prev => ({ ...prev, mode: 'pvp' }))}
-                              className={cn(
-                                "py-4 rounded-xl font-black italic flex items-center justify-center gap-2 transition-all",
-                                createOptions.mode === 'pvp' ? "bg-purple-600 text-white" : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                              )}
-                            >
-                              <Swords className="w-4 h-4" /> PVP
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-4 pt-4">
-                          <button 
-                            onClick={() => setShowCreateModal(false)}
-                            className="flex-1 bg-slate-800 text-slate-400 font-black py-4 rounded-2xl hover:bg-slate-700 transition-colors"
-                          >
-                            CANCEL
-                          </button>
-                          <button 
-                            onClick={() => {
-                              createRoom(createOptions.grade, createOptions.mode, createOptions.type);
-                              setShowCreateModal(false);
-                            }}
-                            className="flex-1 bg-white text-slate-950 font-black py-4 rounded-2xl hover:bg-cyan-50 transition-colors"
-                          >
-                            CREATE
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  </div>
-                )}
-              </AnimatePresence>
-
-              <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem]">
-                <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] mb-6">Weekly Top Striker</h3>
-                <div className="space-y-4">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="flex items-center gap-4">
-                      <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center font-black italic text-sm",
-                        i === 1 ? "bg-yellow-500 text-slate-950" : "bg-slate-800 text-slate-400"
-                      )}>{i}</div>
-                      <div className="flex-1">
-                        <div className="text-sm font-bold">Player_{i}234</div>
-                        <div className="text-[10px] text-slate-500 uppercase font-bold">Level 42 • 12.4k XP</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            ))}
+            <button onClick={() => setShowCreateModal(true)} className="bg-blue-600 p-4 rounded-2xl font-black italic text-center">CREATE ROOM</button>
           </div>
+          
+          {showCreateModal && (
+            <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4">
+              <div className="bg-slate-900 p-6 rounded-3xl w-full max-w-sm">
+                <h3 className="text-xl font-black italic mb-4">Create Room</h3>
+                <select className="w-full bg-slate-800 p-3 rounded-xl mb-4" onChange={(e) => setCreateOptions({...createOptions, grade: e.target.value})}>
+                  <option value="6">Grade 6</option>
+                  <option value="7">Grade 7</option>
+                </select>
+                <select className="w-full bg-slate-800 p-3 rounded-xl mb-4" onChange={(e) => setCreateOptions({...createOptions, mode: e.target.value as 'ai' | 'pvp'})}>
+                  <option value="ai">AI Battle</option>
+                  <option value="pvp">PvP</option>
+                </select>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowCreateModal(false)} className="flex-1 bg-slate-800 p-3 rounded-xl">CANCEL</button>
+                  <button onClick={() => { createRoom(createOptions.grade, createOptions.mode); setShowCreateModal(false); }} className="flex-1 bg-blue-600 p-3 rounded-xl font-black">CREATE</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -456,115 +237,27 @@ export default function ArenaPage() {
 
   if (gameState === 'room' && currentRoom) {
     const isMeReady = currentRoom.players.find(p => p.id === socket?.id)?.ready;
-
     return (
-      <div className="min-h-screen bg-slate-950 text-white p-4 md:p-6 flex items-center justify-center">
-        <div className="max-w-2xl w-full bg-slate-900 border border-slate-800 rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 text-center relative overflow-hidden shadow-2xl">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600" />
-          
-          <div className="mb-8">
-            <div className="inline-block bg-blue-500/10 text-blue-400 text-[10px] md:text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-widest mb-4">
-              Arena Lobby • #{currentRoom.id}
-            </div>
-            <h2 className="text-2xl md:text-4xl font-black italic uppercase tracking-tighter">
-              {currentRoom.mode === 'ai' ? 'AI Training Session' : 'Waiting for Players'}
-            </h2>
-          </div>
-
-          <div className="flex flex-wrap justify-center gap-4 md:gap-8 mb-12">
-            {currentRoom.players.map(p => (
-              <div key={p.id} className="text-center group">
-                <div className={cn(
-                  "w-16 h-16 md:w-24 md:h-24 rounded-full border-4 flex items-center justify-center mb-4 transition-all relative",
-                  p.ready ? "border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]" : "border-slate-700 bg-slate-800"
-                )}>
-                  <User className={cn(
-                    "w-8 h-8 md:w-12 md:h-12 transition-colors",
-                    p.ready ? "text-emerald-400" : "text-slate-500"
-                  )} />
-                  {p.ready && (
-                    <div className="absolute -top-1 -right-1 bg-emerald-500 rounded-full p-1 shadow-lg">
-                      <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 text-white" />
-                    </div>
-                  )}
+      <div className="min-h-screen bg-slate-950 text-white p-4 flex items-center justify-center">
+        <div className="max-w-md w-full bg-slate-900 p-8 rounded-3xl text-center">
+          <h2 className="text-2xl font-black italic uppercase mb-8">Arena Lobby #{currentRoom.id}</h2>
+          <div className="flex justify-center gap-4 mb-8">
+            {currentRoom.players.map((p, idx) => (
+              <div key={p.id} className="text-center">
+                <div className={cn("w-16 h-16 rounded-full border-4 flex items-center justify-center mb-2", p.ready ? "border-emerald-500" : "border-slate-700")}>
+                  <User className={cn("w-8 h-8", p.ready ? "text-emerald-400" : "text-slate-500")} />
                 </div>
-                <div className="text-xs md:text-sm font-black italic uppercase truncate max-w-[80px] md:max-w-[120px]">{p.name}</div>
-                <div className={cn(
-                  "text-[8px] md:text-[10px] font-bold uppercase tracking-widest mt-1",
-                  p.ready ? "text-emerald-400" : "text-slate-500"
-                )}>
-                  {p.ready ? 'Ready' : 'Waiting'}
-                </div>
+                <div className="text-xs font-bold">{p.name}</div>
               </div>
             ))}
-            {currentRoom.mode === 'ai' && (
-              <div className="text-center opacity-50">
-                <div className="w-16 h-16 md:w-24 md:h-24 bg-slate-800 rounded-full border-4 border-slate-700 border-dashed flex items-center justify-center mb-4">
-                  <Bot className="w-8 h-8 md:w-12 md:h-12 text-slate-600" />
-                </div>
-                <div className="text-xs md:text-sm font-black italic uppercase">Gemini AI</div>
-                <div className="text-[8px] md:text-[10px] text-slate-500 font-bold uppercase">Opponent</div>
-              </div>
-            )}
           </div>
-
-          <div className="flex flex-col gap-4">
-            <AnimatePresence>
-              {showCopySuccess && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                  className="bg-emerald-500/20 text-emerald-400 text-[10px] md:text-xs font-bold py-2 rounded-xl border border-emerald-500/30 mb-2"
-                >
-                  Link copied to clipboard!
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {currentRoom.mode === 'ai' ? (
-              <button 
-                onClick={startBattle}
-                disabled={isGenerating}
-                className="bg-white text-slate-950 font-black py-4 md:py-5 rounded-2xl md:rounded-3xl text-lg md:text-xl uppercase tracking-tighter hover:bg-cyan-50 transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 shadow-xl"
-              >
-                {isGenerating ? (
-                  <>GENERATING... <Loader2 className="w-6 h-6 animate-spin" /></>
-                ) : (
-                  <>START BATTLE <Zap className="w-6 h-6 fill-current" /></>
-                )}
-              </button>
-            ) : (
-              <button 
-                onClick={toggleReady}
-                className={cn(
-                  "font-black py-4 md:py-5 rounded-2xl md:rounded-3xl text-lg md:text-xl uppercase tracking-tighter transition-all active:scale-95 flex items-center justify-center gap-3 shadow-xl",
-                  isMeReady ? "bg-emerald-600 text-white hover:bg-emerald-500" : "bg-white text-slate-950 hover:bg-cyan-50"
-                )}
-              >
-                {isMeReady ? (
-                  <>READY! <CheckCircle2 className="w-6 h-6" /></>
-                ) : (
-                  <>I'M READY <Zap className="w-6 h-6 fill-current" /></>
-                )}
-              </button>
-            )}
-
-            <div className="flex gap-4">
-              <button 
-                onClick={inviteFriends}
-                className="flex-1 bg-slate-800 text-white font-bold py-3 md:py-4 rounded-xl md:rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-700 transition-colors text-xs md:text-sm"
-              >
-                <Share2 className="w-4 h-4" /> INVITE
-              </button>
-              <button 
-                onClick={leaveRoom}
-                className="bg-slate-800 text-red-400 font-bold p-3 md:p-4 rounded-xl md:rounded-2xl hover:bg-red-500/10 transition-colors"
-              >
-                <LogOut className="w-5 h-5 md:w-6 md:h-6" />
-              </button>
-            </div>
-          </div>
+          {currentRoom.mode === 'ai' ? (
+            <button onClick={startBattle} className="w-full bg-white text-black font-black py-4 rounded-2xl">START BATTLE</button>
+          ) : (
+            <button onClick={toggleReady} className={cn("w-full font-black py-4 rounded-2xl", isMeReady ? "bg-emerald-600" : "bg-white text-black")}>
+              {isMeReady ? "READY!" : "I'M READY"}
+            </button>
+          )}
         </div>
       </div>
     );
@@ -576,218 +269,40 @@ export default function ArenaPage() {
     const opponent = currentRoom?.mode === 'ai' ? currentRoom.ai : currentRoom?.players.find(p => p.id !== socket?.id);
 
     return (
-      <div className="min-h-screen bg-slate-950 text-white p-4 md:p-8 font-sans overflow-hidden flex flex-col">
-        {/* Battle Header */}
-        <div className="max-w-6xl mx-auto w-full grid grid-cols-2 gap-3 md:gap-8 mb-4 md:mb-12">
-          {/* Player Stats */}
-          <div className="space-y-1 md:space-y-4">
-            <div className="flex justify-between items-end">
-              <div className="flex items-center gap-1.5 md:gap-3">
-                <div className="w-8 h-8 md:w-12 md:h-12 bg-blue-600 rounded-lg md:rounded-xl flex items-center justify-center font-black italic text-sm md:text-xl shadow-[0_0_20px_rgba(37,99,235,0.4)]">P1</div>
-                <div>
-                  <div className="text-[8px] md:text-xs font-black text-slate-500 uppercase tracking-widest">You</div>
-                  <div className="text-xs md:text-xl font-black italic uppercase tracking-tighter truncate max-w-[60px] md:max-w-none">{player?.name}</div>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-[8px] md:text-[10px] font-black text-slate-500 uppercase">Score</div>
-                <div className="text-sm md:text-2xl font-black italic text-cyan-400">{player?.score}</div>
-              </div>
-            </div>
-            <div className="relative h-2.5 md:h-6 bg-slate-900 rounded-full border border-slate-800 overflow-hidden shadow-inner">
-              <motion.div 
-                initial={{ width: '100%' }}
-                animate={{ width: `${player?.hp}%` }}
-                className={cn(
-                  "absolute top-0 left-0 h-full transition-colors duration-500",
-                  (player?.hp || 0) > 50 ? "bg-gradient-to-r from-emerald-500 to-cyan-400" : 
-                  (player?.hp || 0) > 20 ? "bg-gradient-to-r from-yellow-500 to-orange-400" : 
-                  "bg-gradient-to-r from-red-600 to-red-400"
-                )}
-              />
-              <div className="absolute inset-0 flex items-center justify-center text-[6px] md:text-xs font-black uppercase tracking-widest mix-blend-difference text-white">
-                HP {player?.hp}
-              </div>
-            </div>
+      <div className="min-h-screen bg-slate-950 text-white p-4 font-sans flex flex-col">
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center gap-2">
+            <div className="bg-blue-600 px-3 py-1 rounded-lg font-black">{player?.hp} HP</div>
+            <div className="font-bold">{player?.name}</div>
           </div>
-
-          {/* Opponent Stats */}
-          <div className="space-y-1 md:space-y-4 text-right">
-            <div className="flex justify-between items-end flex-row-reverse">
-              <div className="flex items-center gap-1.5 md:gap-3 flex-row-reverse">
-                <div className="w-8 h-8 md:w-12 md:h-12 bg-red-600 rounded-lg md:rounded-xl flex items-center justify-center font-black italic text-sm md:text-xl shadow-[0_0_20px_rgba(220,38,38,0.4)]">
-                  {currentRoom?.mode === 'ai' ? <Bot className="w-4 h-4 md:w-6 md:h-6" /> : 'P2'}
-                </div>
-                <div>
-                  <div className="text-[8px] md:text-xs font-black text-slate-500 uppercase tracking-widest">Opponent</div>
-                  <div className="text-xs md:text-xl font-black italic uppercase tracking-tighter truncate max-w-[60px] md:max-w-none">{opponent?.name}</div>
-                </div>
-              </div>
-              <div className="text-left">
-                <div className="text-[8px] md:text-[10px] font-black text-slate-500 uppercase">Score</div>
-                <div className="text-sm md:text-2xl font-black italic text-red-500">{opponent?.score}</div>
-              </div>
-            </div>
-            <div className="relative h-2.5 md:h-6 bg-slate-900 rounded-full border border-slate-800 overflow-hidden shadow-inner">
-              <motion.div 
-                initial={{ width: '100%' }}
-                animate={{ width: `${opponent?.hp}%` }}
-                className={cn(
-                  "absolute top-0 right-0 h-full transition-colors duration-500",
-                  (opponent?.hp || 0) > 50 ? "bg-gradient-to-l from-red-500 to-orange-400" : 
-                  (opponent?.hp || 0) > 20 ? "bg-gradient-to-l from-red-600 to-orange-500" : 
-                  "bg-gradient-to-l from-red-900 to-red-700"
-                )}
-              />
-              <div className="absolute inset-0 flex items-center justify-center text-[6px] md:text-xs font-black uppercase tracking-widest mix-blend-difference text-white">
-                HP {opponent?.hp}
-              </div>
-            </div>
+          <div className="text-cyan-400 font-mono font-black">{timeLeft}s</div>
+          <div className="flex items-center gap-2">
+            <div className="font-bold">{opponent?.name}</div>
+            <div className="bg-red-600 px-3 py-1 rounded-lg font-black">{opponent?.hp} HP</div>
           </div>
         </div>
-
-        {/* Main Battle Area */}
-        <div className="max-w-4xl mx-auto w-full relative flex-1 flex flex-col justify-center">
-          {/* Question Card */}
-          <motion.div 
-            key={currentQuestionIndex}
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="bg-slate-900 border border-slate-800 rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 relative overflow-hidden shadow-2xl"
-          >
-            <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-800">
-              <motion.div 
-                key={`timer-${currentQuestionIndex}`}
-                initial={{ width: '100%' }}
-                animate={{ width: '0%' }}
-                transition={{ duration: 15, ease: 'linear' }}
-                className="h-full bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]"
-              />
-            </div>
-
-            <div className="flex justify-between items-center mb-6 md:mb-8">
-              <span className="text-[10px] md:text-xs font-black text-slate-500 uppercase tracking-[0.2em] md:tracking-[0.3em]">Question {currentQuestionIndex + 1}/10</span>
-              <div className={cn(
-                "flex items-center gap-2 font-mono font-black text-lg md:text-xl transition-colors",
-                timeLeft <= 5 ? "text-red-500 animate-pulse" : "text-cyan-400"
-              )}>
-                <Timer className="w-4 h-4 md:w-5 md:h-5" /> {timeLeft}s
-              </div>
-            </div>
-
-            <h3 className="text-xl md:text-3xl font-bold leading-tight mb-8 md:mb-12 text-center text-slate-100">
-              {currentQuestion.question}
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-              {currentQuestion.options.map((option, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => submitAnswer(option)}
-                  disabled={!!selectedAnswer}
-                  className={cn(
-                    "p-4 md:p-6 rounded-2xl border-2 text-left font-bold transition-all flex items-center gap-3 md:gap-4 group relative overflow-hidden",
-                    selectedAnswer === option 
-                      ? (isCorrect ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" : "bg-red-500/20 border-red-500 text-red-400")
-                      : (selectedAnswer && option === currentQuestion.correctAnswer ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" : "bg-slate-800 border-slate-700 hover:border-cyan-500/50 hover:bg-slate-800/80")
-                  )}
-                >
-                  <div className={cn(
-                    "w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center text-xs md:text-sm font-black uppercase transition-colors",
-                    selectedAnswer === option ? "bg-current text-slate-950" : "bg-slate-700 text-slate-400 group-hover:bg-cyan-500 group-hover:text-white"
-                  )}>
-                    {String.fromCharCode(65 + idx)}
-                  </div>
-                  <span className="text-sm md:text-lg flex-1">{option}</span>
-                </button>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Battle Log */}
-          <div className="mt-8 flex justify-center">
-            <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800/50 rounded-2xl px-6 py-4 flex items-center gap-4 max-w-full overflow-hidden shadow-xl">
-              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-r border-slate-800 pr-4 shrink-0">Battle Log</div>
-              <div className="flex gap-6 overflow-hidden">
-                <AnimatePresence mode="popLayout">
-                  {battleLog.map((log, i) => (
-                    <motion.span 
-                      key={log + i}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className={cn(
-                        "text-xs font-bold italic whitespace-nowrap",
-                        log.includes('chính xác') ? "text-emerald-400" : 
-                        log.includes('trúng đòn') ? "text-red-400" : "text-slate-400"
-                      )}
-                    >
-                      {log}
-                    </motion.span>
-                  ))}
-                </AnimatePresence>
-              </div>
-            </div>
+        <motion.div animate={shake ? { x: [-5, 5, -5, 5, 0] } : {}} transition={{ duration: 0.4 }} className="bg-slate-900 p-6 rounded-3xl border border-slate-800 flex-1 flex flex-col justify-center">
+          <h3 className="text-xl font-bold mb-8 text-center">{currentQuestion.question}</h3>
+          <div className="grid grid-cols-1 gap-3">
+            {currentQuestion.options.map((option, idx) => (
+              <button key={idx} onClick={() => submitAnswer(option)} disabled={selectedAnswer !== null} className={cn("p-4 rounded-2xl border-2 text-left font-bold", selectedAnswer === option ? (isCorrect ? "border-emerald-500" : "border-red-500") : "border-slate-700")}>
+                {option}
+              </button>
+            ))}
           </div>
-        </div>
+        </motion.div>
       </div>
     );
   }
 
   if (gameState === 'result' && currentRoom) {
-    const allParticipants = [...currentRoom.players];
-    if (currentRoom.mode === 'ai' && currentRoom.ai) {
-      allParticipants.push(currentRoom.ai);
-    }
-    const sortedParticipants = allParticipants.sort((a, b) => b.score - a.score);
-    
     return (
       <div className="min-h-screen bg-slate-950 text-white p-6 flex items-center justify-center">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-xl w-full bg-slate-900 border border-slate-800 rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 text-center shadow-2xl"
-        >
-          <div className="w-20 h-20 md:w-24 md:h-24 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-6 md:mb-8 shadow-[0_0_30px_rgba(234,179,8,0.3)]">
-            <Trophy className="w-10 h-10 md:w-12 md:h-12 text-yellow-500" />
-          </div>
-          
-          <h2 className="text-3xl md:text-5xl font-black italic uppercase tracking-tighter mb-2">Battle Result</h2>
-          <p className="text-slate-500 font-mono text-[10px] md:text-sm uppercase tracking-widest mb-8 md:mb-12">Final Standings</p>
-
-          <div className="space-y-3 md:space-y-4 mb-8 md:mb-12">
-            {sortedParticipants.map((p, i) => (
-              <div key={p.id || 'ai'} className={cn(
-                "p-4 md:p-6 rounded-2xl md:rounded-3xl flex items-center justify-between transition-all",
-                i === 0 ? "bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/50 shadow-lg" : "bg-slate-800/50 border border-slate-700"
-              )}>
-                <div className="flex items-center gap-3 md:gap-4">
-                  <div className={cn(
-                    "text-xl md:text-2xl font-black italic",
-                    i === 0 ? "text-yellow-500" : "text-slate-500"
-                  )}>#{i + 1}</div>
-                  <div className="text-left">
-                    <div className="font-black uppercase italic text-sm md:text-base flex items-center gap-2">
-                      {p.name}
-                      {p.id === 'ai' && <Bot className="w-3 h-3 text-red-400" />}
-                    </div>
-                    <div className="text-[8px] md:text-[10px] text-slate-500 font-bold uppercase">
-                      {i === 0 ? "Winner • +250 XP" : "Participant • +50 XP"}
-                    </div>
-                  </div>
-                </div>
-                <div className="text-xl md:text-2xl font-black italic text-cyan-400">{p.score}</div>
-              </div>
-            ))}
-          </div>
-
-          <button 
-            onClick={() => setGameState('lobby')}
-            className="w-full bg-white text-slate-950 font-black py-4 md:py-5 rounded-2xl md:rounded-3xl text-lg md:text-xl uppercase tracking-tighter hover:bg-cyan-50 transition-all active:scale-95 shadow-lg"
-          >
-            RETURN TO LOBBY
-          </button>
-        </motion.div>
+        <div className="bg-slate-900 p-12 rounded-3xl text-center">
+          <Trophy className="w-20 h-20 text-yellow-500 mx-auto mb-6" />
+          <h2 className="text-4xl font-black italic uppercase mb-8">Battle Result</h2>
+          <button onClick={() => setGameState('lobby')} className="bg-white text-black font-black py-4 px-8 rounded-2xl">RETURN TO LOBBY</button>
+        </div>
       </div>
     );
   }

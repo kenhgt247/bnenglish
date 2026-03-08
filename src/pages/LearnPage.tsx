@@ -64,7 +64,23 @@ export default function LearnPage() {
   };
 
   const handleScore = async (score: number) => {
-    if (!user || !words[currentIndex]) return;
+    if (!words[currentIndex]) return;
+
+    const advanceToNext = () => {
+      if (currentIndex < words.length - 1) {
+        setCurrentIndex(prev => prev + 1);
+        setIsFlipped(false);
+      } else {
+        toast.success('Hoàn thành bài học!');
+        navigate(-1);
+      }
+    };
+
+    if (!user) {
+      advanceToNext();
+      return;
+    }
+
     setSaving(true);
     
     const word = words[currentIndex];
@@ -77,31 +93,45 @@ export default function LearnPage() {
 
       if (progressSnap.exists()) {
         const data = progressSnap.data() as ProgressWord;
-        const { interval, ease, reps, lapses } = calculateSRS(score, data.reps, data.intervalDays, data.easeFactor);
+        const { interval, ease, reps, lapses } = calculateSRS(
+          score, 
+          data.reps || 0, 
+          data.intervalDays || 1, 
+          data.easeFactor || 2.5
+        );
         newProgress = {
-          score, reps, lapses: data.lapses + lapses, intervalDays: interval, easeFactor: ease,
-          lastReviewedAt: now, nextReviewAt: now + interval * 24 * 60 * 60 * 1000
+          score, 
+          reps, 
+          lapses: (data.lapses || 0) + lapses, 
+          intervalDays: interval, 
+          easeFactor: ease,
+          lastReviewedAt: now, 
+          nextReviewAt: now + interval * 24 * 60 * 60 * 1000
         };
       } else {
         const { interval, ease, reps, lapses } = calculateSRS(score, 0, 1, 2.5);
         newProgress = {
-          userId: user.uid, gradeId: word.gradeId, unitId: word.unitId, lessonId: word.lessonId, wordId: word.id,
-          score, reps, lapses, intervalDays: interval, easeFactor: ease,
-          lastReviewedAt: now, nextReviewAt: now + interval * 24 * 60 * 60 * 1000
+          userId: user.uid, 
+          gradeId: word.gradeId || gradeId || '', 
+          unitId: word.unitId || unitId || '', 
+          lessonId: word.lessonId || lessonId || '', 
+          wordId: word.id,
+          score, 
+          reps, 
+          lapses, 
+          intervalDays: interval, 
+          easeFactor: ease,
+          lastReviewedAt: now, 
+          nextReviewAt: now + interval * 24 * 60 * 60 * 1000
         };
       }
 
       await setDoc(progressRef, newProgress, { merge: true });
-      
-      if (currentIndex < words.length - 1) {
-        setCurrentIndex(prev => prev + 1);
-        setIsFlipped(false);
-      } else {
-        toast.success('Hoàn thành bài học!');
-        navigate(-1);
-      }
+      advanceToNext();
     } catch (error) {
+      console.error("Error saving progress:", error);
       toast.error('Lỗi lưu tiến độ');
+      advanceToNext();
     } finally {
       setSaving(false);
     }

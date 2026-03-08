@@ -48,7 +48,7 @@ async function startServer() {
       const room = rooms.get(roomId);
       if (room && room.status === 'waiting') {
         if (room.mode === 'pvp' && room.players.length < (room.type === '1v1' ? 2 : 4)) {
-          room.players.push({ id: socket.id, name: playerName || `Player ${socket.id.substring(0, 4)}`, score: 0, hp: 100, ready: false });
+          room.players.push({ id: socket.id, name: playerName || `Player ${socket.id.substring(0, 4)}`, score: 0, hp: 100, ready: false, hasAnswered: false });
           socket.join(roomId);
           io.to(roomId).emit("room_updated", room);
         } else if (room.mode === 'ai') {
@@ -88,53 +88,124 @@ async function startServer() {
 
     socket.on("set_questions", ({ roomId, questions }) => {
       const room = rooms.get(roomId);
-      if (room && room.status === 'waiting') {
-        room.status = 'playing';
+      if (room && room.status === 'playing') {
         room.questions = questions;
         room.currentQuestionIndex = 0;
+        room.players.forEach(p => p.hasAnswered = false);
+        if (room.ai) room.ai.hasAnswered = false;
         io.to(roomId).emit("game_started", { questions: room.questions });
-        io.emit("update_rooms", Array.from(rooms.values()).filter(r => r.status === 'waiting'));
+        
+        if (room.mode === 'ai') {
+          triggerAIAnswer(roomId, 0);
+        }
       }
     });
 
-    socket.on("submit_answer", ({ roomId, answer, timeTaken }) => {
+    function triggerAIAnswer(roomId, questionIndex) {
+      const aiDelay = Math.floor(Math.random() * 5000) + 3000; // 3-8 seconds
+      setTimeout(() => {
+        const room = rooms.get(roomId);
+        if (!room || room.status !== 'playing' || room.mode !== 'ai' || !room.ai) return;
+        if (room.currentQuestionIndex !== questionIndex || room.ai.hasAnswered) return;
+
+        const isCorrect = Math.random() < 0.7; // 70% accuracy
+        const currentQuestion = room.questions[questionIndex];
+        const answer = isCorrect ? currentQuestion.correctAnswer : "wrong_answer";
+        
+        handleAnswerSubmit(roomId, 'ai', answer, aiDelay);
+      }, aiDelay);
+    }
+
+    function handleAnswerSubmit(roomId, playerId, answer, timeTaken) {
       const room = rooms.get(roomId);
       if (!room || room.status !== 'playing') return;
 
-      const player = room.players.find(p => p.id === socket.id);
-      if (!player) return;
+      let player;
+      if (playerId === 'ai') {
+        player = room.ai;
+      } else {
+        player = room.players.find(p => p.id === playerId);
+      }
+
+      if (!player || player.hasAnswered) return;
+      player.hasAnswered = true;
 
       const currentQuestion = room.questions[room.currentQuestionIndex];
       const isCorrect = answer === currentQuestion.correctAnswer;
 
       if (isCorrect) {
         player.score += Math.max(10, 20 - Math.floor(timeTaken / 1000));
-        if (room.mode === 'ai' && room.ai) {
-          room.ai.hp -= 15;
-          io.to(roomId).emit("player_action", { playerId: 'ai', isCorrect: false, hp: room.ai.hp, score: room.ai.score });
-        } else {
+        if (playerId === 'ai') {
           room.players.forEach(p => {
-            if (p.id !== socket.id) {
-              p.hp -= 15;
-              io.to(roomId).emit("player_action", { playerId: p.id, isCorrect: false, hp: p.hp, score: p.score });
-            }
+            p.hp -= 15;
+            io.to(roomId).emit("player_action", { playerId: p.id, isCorrect: false, hp: p.hp, score: p.score });
           });
+        } else {
+          if (room.mode === 'ai' && room.ai) {
+            room.ai.hp -= 15;
+            io.to(roomId).emit("player_action", { playerId: 'ai', isCorrect: false, hp: room.ai.hp, score: room.ai.score });
+          } else {
+            room.players.forEach(p => {
+              if (p.id !== playerId) {
+                p.hp -= 15;
+                io.to(roomId).emit("player_action", { playerId: p.id, isCorrect: false, hp: p.hp, score: p.score });
+              }
+            });
+          }
         }
       } else {
-        player.hp -= 15;
-        if (room.mode === 'ai' && room.ai) {
-          room.ai.score += 10;
-          io.to(roomId).emit("player_action", { playerId: 'ai', isCorrect: true, hp: room.ai.hp, score: room.ai.score });
+        player.hp -= 10;
+        // If wrong, opponent gets score
+        if (playerId === 'ai') {
+          room.players.forEach(p => {
+            p.score += 10;
+            io.to(roomId).emit("player_action", { playerId: p.id, isCorrect: true, hp: p.hp, score: p.score });
+          });
+        } else {
+          if (room.mode === 'ai' && room.ai) {
+            room.ai.score += 10;
+            io.to(roomId).emit("player_action", { playerId: 'ai', isCorrect: true, hp: room.ai.hp, score: room.ai.score });
+          } else {
+            room.players.forEach(p => {
+              if (p.id !== playerId) {
+                p.score += 10;
+                io.to(roomId).emit("player_action", { playerId: p.id, isCorrect: true, hp: p.hp, score: p.score });
+              }
+            });
+          }
         }
       }
 
-      io.to(roomId).emit("player_action", { playerId: socket.id, isCorrect, hp: player.hp, score: player.score });
+      io.to(roomId).emit("player_action", { playerId, isCorrect, hp: player.hp, score: player.score });
 
-      if (player.hp <= 0) {
-        endGame(roomId, `${player.name} bị đánh bại!`);
-      } else if (room.mode === 'ai' && room.ai && room.ai.hp <= 0) {
-        endGame(roomId, `Gemini AI đã bị đánh bại!`);
+      const anyDead = room.players.some(p => p.hp <= 0) || (room.mode === 'ai' && room.ai && room.ai.hp <= 0);
+      if (anyDead) {
+        endGame(roomId, "K.O.");
+        return;
       }
+
+      const allPlayersAnswered = room.players.every(p => p.hasAnswered);
+      const aiAnswered = room.mode === 'pvp' || (room.ai && room.ai.hasAnswered);
+      
+      if (allPlayersAnswered && aiAnswered) {
+        setTimeout(() => {
+          room.players.forEach(p => p.hasAnswered = false);
+          if (room.ai) room.ai.hasAnswered = false;
+          room.currentQuestionIndex++;
+          if (room.currentQuestionIndex >= room.questions.length) {
+            endGame(roomId, "Hết câu hỏi");
+          } else {
+            io.to(roomId).emit("next_question", { questionIndex: room.currentQuestionIndex });
+            if (room.mode === 'ai') {
+              triggerAIAnswer(roomId, room.currentQuestionIndex);
+            }
+          }
+        }, 2000);
+      }
+    }
+
+    socket.on("submit_answer", ({ roomId, answer, timeTaken }) => {
+      handleAnswerSubmit(roomId, socket.id, answer, timeTaken);
     });
 
     const leaveRoom = (socketId) => {

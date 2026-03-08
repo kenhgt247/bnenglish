@@ -17,6 +17,7 @@ interface Player {
   score: number;
   hp: number;
   ready?: boolean;
+  hasAnswered?: boolean;
 }
 
 interface Question {
@@ -54,6 +55,8 @@ export default function ArenaPage() {
   const [showCopySuccess, setShowCopySuccess] = useState(false);
   const [createOptions, setCreateOptions] = useState({ grade: '6', mode: 'ai' as 'ai' | 'pvp', type: '1v1' as '1v1' | '2v2' });
   const [shake, setShake] = useState(false);
+
+  const [gameResult, setGameResult] = useState<{ reason: string, players: Player[] } | null>(null);
 
   useEffect(() => {
     currentRoomRef.current = currentRoom;
@@ -115,6 +118,7 @@ export default function ArenaPage() {
       setGameState('battle');
       setCurrentQuestionIndex(0);
       setTimeLeft(15);
+      setBattleLog([]);
     });
 
     newSocket.on("player_action", ({ playerId, isCorrect, hp, score }) => {
@@ -126,10 +130,25 @@ export default function ArenaPage() {
       
       let playerName = playerId === 'ai' ? "Gemini AI" : (currentRoomRef.current?.players.find(p => p.id === playerId)?.name || "Player");
       setBattleLog(prev => [`${playerName} ${isCorrect ? 'tấn công chính xác!' : 'bị trúng đòn!'}`, ...prev.slice(0, 4)]);
-      if (!isCorrect) setShake(true);
+      
+      const isLocalPlayer = playerId === newSocket.id;
+      if ((isLocalPlayer && !isCorrect) || (!isLocalPlayer && isCorrect)) {
+        setShake(true);
+        setTimeout(() => setShake(false), 500);
+      }
     });
 
-    newSocket.on("game_ended", () => setGameState('result'));
+    newSocket.on("next_question", ({ questionIndex }) => {
+      setCurrentQuestionIndex(questionIndex);
+      setSelectedAnswer(null);
+      setIsCorrect(null);
+      setTimeLeft(15);
+    });
+
+    newSocket.on("game_ended", (result) => {
+      setGameResult(result);
+      setGameState('result');
+    });
 
     return () => {
       newSocket.disconnect();
@@ -161,15 +180,6 @@ export default function ArenaPage() {
     setIsCorrect(correct);
     
     socket?.emit("submit_answer", { roomId: currentRoom.id, answer, timeTaken: (15 - timeLeft) * 1000 });
-
-    setTimeout(() => {
-      if (currentQuestionIndex < questions.length - 1) {
-        setCurrentQuestionIndex(prev => prev + 1);
-        setSelectedAnswer(null);
-        setIsCorrect(null);
-        setTimeLeft(15);
-      }
-    }, 2000);
   };
 
   useEffect(() => {
@@ -296,12 +306,34 @@ export default function ArenaPage() {
   }
 
   if (gameState === 'result' && currentRoom) {
+    const isWin = currentRoom.players.find(p => p.id === socket?.id)?.hp! > 0;
     return (
       <div className="min-h-screen bg-slate-950 text-white p-6 flex items-center justify-center">
-        <div className="bg-slate-900 p-12 rounded-3xl text-center">
-          <Trophy className="w-20 h-20 text-yellow-500 mx-auto mb-6" />
-          <h2 className="text-4xl font-black italic uppercase mb-8">Battle Result</h2>
-          <button onClick={() => setGameState('lobby')} className="bg-white text-black font-black py-4 px-8 rounded-2xl">RETURN TO LOBBY</button>
+        <div className="bg-slate-900 p-12 rounded-3xl text-center max-w-md w-full border border-slate-800">
+          <Trophy className={cn("w-20 h-20 mx-auto mb-6", isWin ? "text-yellow-500" : "text-slate-600")} />
+          <h2 className={cn("text-4xl font-black italic uppercase mb-2", isWin ? "text-yellow-400" : "text-slate-400")}>
+            {isWin ? "VICTORY!" : "DEFEAT"}
+          </h2>
+          <p className="text-slate-400 mb-8">{gameResult?.reason}</p>
+          
+          <div className="space-y-4 mb-8 text-left">
+            {currentRoom.players.map(p => (
+              <div key={p.id} className="bg-slate-800 p-4 rounded-xl flex justify-between items-center">
+                <span className="font-bold">{p.name}</span>
+                <span className="text-emerald-400 font-mono">{p.score} pts</span>
+              </div>
+            ))}
+            {currentRoom.mode === 'ai' && currentRoom.ai && (
+              <div className="bg-slate-800 p-4 rounded-xl flex justify-between items-center">
+                <span className="font-bold text-cyan-400">Gemini AI</span>
+                <span className="text-emerald-400 font-mono">{currentRoom.ai.score} pts</span>
+              </div>
+            )}
+          </div>
+
+          <button onClick={() => setGameState('lobby')} className="w-full bg-white text-black font-black py-4 px-8 rounded-2xl hover:bg-slate-200 transition-colors">
+            RETURN TO LOBBY
+          </button>
         </div>
       </div>
     );

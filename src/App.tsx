@@ -14,6 +14,7 @@ import UnitPage from './pages/UnitPage';
 import LessonPage from './pages/LessonPage';
 import LearnPage from './pages/LearnPage';
 import QuizPage from './pages/QuizPage';
+import AIQuizPage from './pages/AIQuizPage';
 import AdminPage from './pages/AdminPage';
 import SeedPage from './pages/SeedPage';
 import AITeacherPage from './pages/AITeacherPage';
@@ -57,7 +58,9 @@ function App() {
           <Route path="grade/:gradeId/unit/:unitId" element={<UnitPage />} />
           <Route path="grade/:gradeId/unit/:unitId/lesson/:lessonId" element={<LessonPage />} />
           <Route path="learn/:gradeId/:unitId/:lessonId" element={<LearnPage />} />
+          <Route path="quiz" element={<Navigate to="/dashboard" replace />} />
           <Route path="quiz/:gradeId/:unitId/:lessonId" element={<QuizPage />} />
+          <Route path="quiz/ai/:level" element={<AIQuizPage />} />
           <Route path="practice/speaking/:gradeId/:unitId/:lessonId" element={<SpeakingPage />} />
           <Route path="practice/listening/:gradeId/:unitId/:lessonId" element={<ListeningPage />} />
           <Route path="practice/spelling/:gradeId/:unitId/:lessonId" element={<SpellingPage />} />

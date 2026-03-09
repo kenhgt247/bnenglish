@@ -3,13 +3,15 @@ import { Link } from 'react-router-dom';
 import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Grade } from '../types';
-import { GraduationCap, BookOpen, Star } from 'lucide-react';
+import { GraduationCap, BookOpen, Star, Brain } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/useAuthStore';
 
 export default function Home() {
   const [grades, setGrades] = useState<Grade[]>([]);
   const [loading, setLoading] = useState(true);
+  const [grade, setGrade] = useState('6');
+  const [level, setLevel] = useState('easy');
   const { profile } = useAuthStore();
 
   useEffect(() => {
@@ -52,6 +54,46 @@ export default function Home() {
         </p>
       </div>
 
+      {/* Quiz Section */}
+      <div className="mt-12 bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+        <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+          <Brain className="w-6 h-6 text-amber-500" />
+          AI Quiz Generation
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <select 
+            id="grade-select"
+            className="p-4 rounded-xl border-2 border-slate-200"
+            onChange={(e) => setGrade(e.target.value)}
+          >
+            <option value="6">Lớp 6</option>
+            <option value="7">Lớp 7</option>
+            <option value="8">Lớp 8</option>
+            <option value="9">Lớp 9</option>
+          </select>
+          <select 
+            id="level-select"
+            className="p-4 rounded-xl border-2 border-slate-200"
+            onChange={(e) => setLevel(e.target.value)}
+          >
+            <option value="easy">Dễ</option>
+            <option value="medium">Trung bình</option>
+            <option value="hard">Khó</option>
+          </select>
+          <Link 
+            to={`/quiz/ai/${grade}-${level}`}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-xl transition-colors text-center flex items-center justify-center"
+          >
+            Tạo Quiz
+          </Link>
+        </div>
+      </div>
+
+      {/* Grades Section */}
+      <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+        <GraduationCap className="w-6 h-6 text-blue-500" />
+        Các Lớp Học
+      </h2>
       {grades.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-300">
           <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />

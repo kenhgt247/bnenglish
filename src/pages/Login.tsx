@@ -1,26 +1,42 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInWithPopup, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, googleProvider, db } from '../lib/firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
-import { LogIn, Mail } from 'lucide-react';
+import { LogIn, Mail, UserPlus } from 'lucide-react';
 
 export default function Login() {
+  const [isLoginMode, setIsLoginMode] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleEmailLogin = async (e: any) => {
+  const handleEmailAuth = async (e: any) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      toast.success('Đăng nhập thành công!');
+      if (isLoginMode) {
+        await signInWithEmailAndPassword(auth, email, password);
+        toast.success('Đăng nhập thành công!');
+      } else {
+        const result = await createUserWithEmailAndPassword(auth, email, password);
+        const user = result.user;
+        
+        // Create new user profile
+        const userRef = doc(db, 'users', user.uid);
+        await setDoc(userRef, {
+          email: user.email,
+          displayName: user.email?.split('@')[0],
+          role: 'user',
+          createdAt: Date.now()
+        });
+        toast.success('Đăng ký thành công!');
+      }
       navigate('/');
     } catch (error: any) {
-      toast.error(error.message || 'Lỗi đăng nhập');
+      toast.error(error.message || (isLoginMode ? 'Lỗi đăng nhập' : 'Lỗi đăng ký'));
     } finally {
       setLoading(false);
     }
@@ -56,13 +72,17 @@ export default function Login() {
     <div className="max-w-md mx-auto mt-12 bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
       <div className="text-center mb-8">
         <div className="bg-blue-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-          <LogIn className="w-8 h-8 text-blue-500" />
+          {isLoginMode ? <LogIn className="w-8 h-8 text-blue-500" /> : <UserPlus className="w-8 h-8 text-blue-500" />}
         </div>
-        <h1 className="text-2xl font-bold text-slate-800">Chào mừng trở lại!</h1>
-        <p className="text-slate-500 mt-2">Đăng nhập để tiếp tục học</p>
+        <h1 className="text-2xl font-bold text-slate-800">
+          {isLoginMode ? 'Chào mừng trở lại!' : 'Tạo tài khoản mới'}
+        </h1>
+        <p className="text-slate-500 mt-2">
+          {isLoginMode ? 'Đăng nhập để tiếp tục học' : 'Đăng ký để bắt đầu hành trình học tập'}
+        </p>
       </div>
 
-      <form onSubmit={handleEmailLogin} className="space-y-4">
+      <form onSubmit={handleEmailAuth} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
           <input 
@@ -90,9 +110,23 @@ export default function Login() {
           disabled={loading}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
         >
-          {loading ? 'Đang xử lý...' : <><Mail className="w-5 h-5" /> Đăng nhập bằng Email</>}
+          {loading ? 'Đang xử lý...' : (
+            <>
+              {isLoginMode ? <LogIn className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />} 
+              {isLoginMode ? 'Đăng nhập bằng Email' : 'Đăng ký bằng Email'}
+            </>
+          )}
         </button>
       </form>
+
+      <div className="mt-4 text-center">
+        <button 
+          onClick={() => setIsLoginMode(!isLoginMode)}
+          className="text-sm text-blue-600 hover:underline font-medium"
+        >
+          {isLoginMode ? 'Chưa có tài khoản? Đăng ký ngay' : 'Đã có tài khoản? Đăng nhập'}
+        </button>
+      </div>
 
       <div className="my-6 flex items-center">
         <div className="flex-1 border-t border-slate-200"></div>

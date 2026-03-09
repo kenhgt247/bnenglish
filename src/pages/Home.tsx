@@ -89,6 +89,27 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Tools Section */}
+      <div className="mt-12">
+        <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+          <BookOpen className="w-6 h-6 text-purple-500" />
+          Công Cụ Học Tập
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Link 
+            to="/irregular-verbs"
+            className="group relative overflow-hidden rounded-3xl p-6 border-2 transition-all hover:-translate-y-1 hover:shadow-lg bg-purple-50 text-purple-600 border-purple-200"
+          >
+            <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-20 rounded-full blur-xl group-hover:scale-150 transition-transform duration-500"></div>
+            <BookOpen className="w-10 h-10 mb-4 opacity-80" />
+            <h2 className="text-2xl font-bold mb-1">Động Từ Bất Quy Tắc</h2>
+            <p className="text-sm font-medium opacity-80 flex items-center gap-1">
+              360 từ bắt buộc <Star className="w-3 h-3" />
+            </p>
+          </Link>
+        </div>
+      </div>
+
       {/* Grades Section */}
       <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
         <GraduationCap className="w-6 h-6 text-blue-500" />

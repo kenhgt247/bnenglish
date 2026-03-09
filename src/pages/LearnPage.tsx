@@ -6,6 +6,7 @@ import { Word, ProgressWord } from '../types';
 import { useAuthStore } from '../store/useAuthStore';
 import { Volume2, ArrowLeft, Check, X, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { irregularVerbs } from '../data/irregularVerbs';
 
 // Simple SM-2 variant
 const calculateSRS = (score: number, reps: number, prevInterval: number, prevEase: number) => {
@@ -44,6 +45,30 @@ export default function LearnPage() {
   useEffect(() => {
     const fetchWords = async () => {
       if (!gradeId || !unitId || !lessonId) return;
+      
+      if (gradeId === 'irregular-verbs') {
+        // unitId is the level (e.g., 'A1', 'A2', 'All')
+        const filtered = unitId === 'All' 
+          ? irregularVerbs 
+          : irregularVerbs.filter(v => v.level === unitId);
+          
+        const mappedWords: Word[] = filtered.map(verb => ({
+          id: `irreg_${verb.v1}`,
+          word: verb.v1,
+          ipa: `V2: ${verb.v2} | V3: ${verb.v3}`,
+          pos: 'verb',
+          meaning_vi: verb.meaning,
+          example_en: `I ${verb.v2} yesterday. I have ${verb.v3} already.`,
+          example_vi: `Tôi đã ${verb.meaning} hôm qua. Tôi đã ${verb.meaning} rồi.`,
+          gradeId: 'irregular-verbs',
+          unitId: unitId,
+          lessonId: lessonId
+        }));
+        setWords(mappedWords);
+        setLoading(false);
+        return;
+      }
+
       try {
         const snapshot = await getDocs(collection(db, `grades/${gradeId}/units/${unitId}/lessons/${lessonId}/words`));
         const fetchedWords = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Word));

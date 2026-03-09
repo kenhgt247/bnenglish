@@ -7,6 +7,7 @@ import { ArrowLeft, CheckCircle2, XCircle, Trophy } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { addXP } from '../features/gamification/gamificationService';
 import { markTaskDone } from '../features/dailyPlan/dailyPlanService';
+import { irregularVerbs } from '../data/irregularVerbs';
 
 interface Question {
   question: string;
@@ -31,13 +32,32 @@ export default function QuizPage() {
     const fetchAndGenerateQuestions = async () => {
       if (!gradeId || !unitId || !lessonId) return;
       try {
-        const snapshot = await getDocs(collection(db, `grades/${gradeId}/units/${unitId}/lessons/${lessonId}/words`));
-        const words = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Word));
+        let words: Word[] = [];
+        
+        if (gradeId === 'irregular-verbs') {
+          const filtered = unitId === 'All' 
+            ? irregularVerbs 
+            : irregularVerbs.filter(v => v.level === unitId);
+            
+          words = filtered.map(verb => ({
+            id: `irreg_${verb.v1}`,
+            word: verb.v1,
+            ipa: `V2: ${verb.v2} | V3: ${verb.v3}`,
+            pos: 'verb',
+            meaning_vi: verb.meaning,
+            example_en: `I ${verb.v2} yesterday. I have ${verb.v3} already.`,
+            example_vi: `Tôi đã ${verb.meaning} hôm qua. Tôi đã ${verb.meaning} rồi.`,
+            gradeId: 'irregular-verbs',
+            unitId: unitId,
+            lessonId: lessonId
+          }));
+        } else {
+          const snapshot = await getDocs(collection(db, `grades/${gradeId}/units/${unitId}/lessons/${lessonId}/words`));
+          words = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Word));
+        }
         
         if (words.length < 4) {
           // Need at least 4 words to make good multiple choice questions
-          // If fewer, we can duplicate or just use what we have, but for simplicity:
-          // We'll just pad with some dummy options if needed, but let's assume we have enough.
         }
 
         const generatedQuestions: Question[] = [];

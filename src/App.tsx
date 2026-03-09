@@ -21,6 +21,7 @@ import AITeacherPage from './pages/AITeacherPage';
 import ArenaPage from './pages/ArenaPage';
 import DictionaryPage from './pages/DictionaryPage';
 import ProfilePage from './pages/ProfilePage';
+import IrregularVerbsPage from './pages/IrregularVerbsPage';
 import SpeakingPage from './features/practice/speaking/SpeakingPage';
 import ListeningPage from './features/practice/listening/ListeningPage';
 import SpellingPage from './features/practice/spelling/SpellingPage';
@@ -69,6 +70,7 @@ function App() {
           <Route path="teacher" element={<AITeacherPage />} />
           <Route path="arena" element={<ArenaPage />} />
           <Route path="dictionary" element={<DictionaryPage />} />
+          <Route path="irregular-verbs" element={<IrregularVerbsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

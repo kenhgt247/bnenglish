@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 
 import { addXP } from '../../../features/gamification/gamificationService';
 import { markTaskDone } from '../../../features/dailyPlan/dailyPlanService';
+import { irregularVerbs } from '../../../data/irregularVerbs';
 
 export default function SpellingPage() {
   const { gradeId, unitId, lessonId } = useParams();
@@ -34,9 +35,29 @@ export default function SpellingPage() {
     const fetchWords = async () => {
       if (!gradeId || !unitId || !lessonId) return;
       try {
-        const q = query(collection(db, `grades/${gradeId}/units/${unitId}/lessons/${lessonId}/words`));
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Word));
+        let data: Word[] = [];
+        if (gradeId === 'irregular-verbs') {
+          const filtered = unitId === 'All' 
+            ? irregularVerbs 
+            : irregularVerbs.filter(v => v.level === unitId);
+            
+          data = filtered.map(verb => ({
+            id: `irreg_${verb.v1}`,
+            word: verb.v1,
+            ipa: `V2: ${verb.v2} | V3: ${verb.v3}`,
+            pos: 'verb',
+            meaning_vi: verb.meaning,
+            example_en: `I ${verb.v2} yesterday. I have ${verb.v3} already.`,
+            example_vi: `Tôi đã ${verb.meaning} hôm qua. Tôi đã ${verb.meaning} rồi.`,
+            gradeId: 'irregular-verbs',
+            unitId: unitId,
+            lessonId: lessonId
+          }));
+        } else {
+          const q = query(collection(db, `grades/${gradeId}/units/${unitId}/lessons/${lessonId}/words`));
+          const snapshot = await getDocs(q);
+          data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Word));
+        }
         setWords(data.sort(() => 0.5 - Math.random()).slice(0, 10)); // 10 random words
         setStartTime(Date.now());
       } catch (error) {

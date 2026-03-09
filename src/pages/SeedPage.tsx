@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { db } from '../lib/firebase';
 import { doc, setDoc, writeBatch } from 'firebase/firestore';
 import toast from 'react-hot-toast';
-import { Database, BookOpen, Sparkles, Loader2 } from 'lucide-react';
+import { Database, BookOpen, Sparkles, Loader2, Brain } from 'lucide-react';
+import { a1a2Words } from '../data/a1a2Words';
 import { basicWords } from '../data/basicWords';
 import { grade6Data } from '../data/grade6Data';
 import { grade7Data } from '../data/grade7Data';
@@ -11,7 +12,7 @@ import { grade9Data } from '../data/grade9Data';
 import { b1Words } from '../data/b1Words';
 import { b2Words } from '../data/b2Words';
 import { c1c2Words } from '../data/c1c2Words';
-import { generateB1Words, generateB2Words, generateC1C2Words } from '../services/gemini';
+import { generateB1Words, generateB2Words, generateC1C2Words, generateA1A2Words, generateQuizQuestions } from '../services/gemini';
 
 export default function SeedPage() {
   const [loading, setLoading] = useState(false);
@@ -31,7 +32,7 @@ export default function SeedPage() {
       // Seed Grade
       batch.set(doc(db, 'grades', gradeId), {
         name: '1000 Từ Vựng Cơ Bản',
-        order: 1
+        order: 5
       });
 
       // Seed Unit
@@ -162,12 +163,17 @@ export default function SeedPage() {
   const [loadingB1, setLoadingB1] = useState(false);
   const [loadingB2, setLoadingB2] = useState(false);
   const [loadingC1C2, setLoadingC1C2] = useState(false);
+  const [loadingA1A2, setLoadingA1A2] = useState(false);
   const [generatingAI, setGeneratingAI] = useState(false);
   const [generatingAIB2, setGeneratingAIB2] = useState(false);
   const [generatingAIC1C2, setGeneratingAIC1C2] = useState(false);
+  const [generatingAIA1A2, setGeneratingAIA1A2] = useState(false);
+  const [generatingAIQuiz, setGeneratingAIQuiz] = useState(false);
   const [aiProgress, setAiProgress] = useState({ current: 0, total: 0 });
   const [aiProgressB2, setAiProgressB2] = useState({ current: 0, total: 0 });
   const [aiProgressC1C2, setAiProgressC1C2] = useState({ current: 0, total: 0 });
+  const [aiProgressA1A2, setAiProgressA1A2] = useState({ current: 0, total: 0 });
+  const [aiQuizProgress, setAiQuizProgress] = useState({ current: 0, total: 0 });
 
   const handleGenerateAIB1 = async () => {
     const totalWords = 1500;
@@ -187,7 +193,7 @@ export default function SeedPage() {
       const initialBatch = writeBatch(db);
       initialBatch.set(doc(db, 'grades', gradeId), {
         name: gradeName,
-        order: 5
+        order: 7
       });
       initialBatch.set(doc(db, `grades/${gradeId}/units`, unitId), {
         title: unitTitle,
@@ -261,7 +267,7 @@ export default function SeedPage() {
       const initialBatch = writeBatch(db);
       initialBatch.set(doc(db, 'grades', gradeId), {
         name: gradeName,
-        order: 6
+        order: 8
       });
       initialBatch.set(doc(db, `grades/${gradeId}/units`, unitId), {
         title: unitTitle,
@@ -335,7 +341,7 @@ export default function SeedPage() {
       const initialBatch = writeBatch(db);
       initialBatch.set(doc(db, 'grades', gradeId), {
         name: gradeName,
-        order: 7
+        order: 9
       });
       initialBatch.set(doc(db, `grades/${gradeId}/units`, unitId), {
         title: unitTitle,
@@ -391,6 +397,121 @@ export default function SeedPage() {
     }
   };
 
+  const handleGenerateAIA1A2 = async () => {
+    const totalWords = 1500;
+    const batchSize = 50;
+    const totalBatches = Math.ceil(totalWords / batchSize);
+    
+    setGeneratingAIA1A2(true);
+    setAiProgressA1A2({ current: 0, total: totalWords });
+
+    try {
+      const gradeId = 'gradeA1A2_AI';
+      const gradeName = 'A1-A2: Từ Vựng Cơ Bản (AI Expanded)';
+      const unitId = 'unitA1A2_AI';
+      const unitTitle = 'Từ vựng A1-A2 (1500+ từ)';
+
+      // Seed Grade & Unit first
+      const initialBatch = writeBatch(db);
+      initialBatch.set(doc(db, 'grades', gradeId), {
+        name: gradeName,
+        order: 6
+      });
+      initialBatch.set(doc(db, `grades/${gradeId}/units`, unitId), {
+        title: unitTitle,
+        order: 1,
+        description: `Bộ từ vựng A1-A2 mở rộng với 1500 từ vựng quan trọng nhất.`
+      });
+      await initialBatch.commit();
+
+      for (let b = 0; b < totalBatches; b++) {
+        const offset = b * batchSize;
+        if (b > 0) {
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+        const words = await generateA1A2Words(batchSize, offset);
+        
+        if (words.length === 0) continue;
+
+        const batch = writeBatch(db);
+        const lessonId = `lesson_ai_a1a2_${b + 1}`;
+        
+        batch.set(doc(db, `grades/${gradeId}/units/${unitId}/lessons`, lessonId), {
+          title: `Bài ${b + 1} (Từ ${offset + 1} - ${offset + words.length})`,
+          order: b + 1,
+          objectives: ['Nắm vững nghĩa của từ', 'Phát âm chuẩn xác'],
+          type: 'vocabulary'
+        });
+
+        words.forEach((w, index) => {
+          const wordId = `word_ai_a1a2_${offset + index + 1}`;
+          batch.set(doc(db, `grades/${gradeId}/units/${unitId}/lessons/${lessonId}/words`, wordId), {
+            ...w,
+            tags: ['a1a2', 'ai-generated'],
+            gradeId: gradeId,
+            unitId: unitId,
+            lessonId: lessonId
+          });
+        });
+
+        await batch.commit();
+        setAiProgressA1A2(prev => ({ ...prev, current: offset + words.length }));
+        toast.success(`Đã tạo ${offset + words.length} từ A1-A2...`, { id: 'ai-progress-a1a2' });
+      }
+
+      toast.success(`Hoàn thành tạo ${totalWords} từ vựng A1-A2!`);
+    } catch (error: any) {
+      console.error(error);
+      toast.error('Lỗi khi tạo từ vựng A1-A2 bằng AI');
+    } finally {
+      setGeneratingAIA1A2(false);
+    }
+  };
+
+  const handleGenerateAIQuiz = async (level: string) => {
+    const totalQuestions = 100;
+    const batchSize = 10;
+    const totalBatches = Math.ceil(totalQuestions / batchSize);
+    
+    setGeneratingAIQuiz(true);
+    setAiQuizProgress({ current: 0, total: totalQuestions });
+
+    try {
+      const quizCollection = `quizzes/${level}/questions`;
+
+      for (let b = 0; b < totalBatches; b++) {
+        if (b > 0) {
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+        const questions = await generateQuizQuestions(level, batchSize);
+        
+        if (questions.length === 0) continue;
+
+        const batch = writeBatch(db);
+        
+        questions.forEach((q, index) => {
+          const questionId = `q_${level}_${b * batchSize + index + 1}`;
+          batch.set(doc(db, quizCollection, questionId), {
+            ...q,
+            level: level,
+            createdAt: new Date()
+          });
+        });
+
+        await batch.commit();
+        setAiQuizProgress(prev => ({ ...prev, current: (b + 1) * batchSize }));
+        toast.success(`Đã tạo ${(b + 1) * batchSize} câu đố ${level}...`, { id: 'ai-quiz-progress' });
+      }
+
+      toast.success(`Hoàn thành tạo ${totalQuestions} câu đố ${level}!`);
+    } catch (error: any) {
+      console.error(error);
+      toast.error(`Lỗi khi tạo câu đố ${level} bằng AI`);
+    } finally {
+      setGeneratingAIQuiz(false);
+    }
+  };
+
   const seedLevel = async (
     gradeId: string,
     gradeName: string,
@@ -415,9 +536,15 @@ export default function SeedPage() {
       };
 
       // Seed Grade
+      let order = 0;
+      if (gradeId === 'gradeA1A2') order = 6;
+      else if (gradeId === 'gradeB1') order = 7;
+      else if (gradeId === 'gradeB2') order = 8;
+      else if (gradeId === 'gradeC1C2') order = 9;
+
       batch.set(doc(db, 'grades', gradeId), {
         name: gradeName,
-        order: gradeId === 'gradeB1' ? 2 : gradeId === 'gradeB2' ? 3 : 4
+        order: order
       });
       operationCount++;
 
@@ -482,6 +609,44 @@ export default function SeedPage() {
 
   return (
     <div className="max-w-4xl mx-auto mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* A1-A2 Words Seed */}
+      <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 text-center">
+        <div className="bg-blue-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+          <Database className="w-8 h-8 text-blue-500" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800 mb-2">A1-A2: Từ Vựng Cơ Bản (Expanded)</h2>
+        <p className="text-slate-500 mb-8 text-sm">
+          Tạo dữ liệu từ vựng A1-A2 mở rộng ({a1a2Words.length} từ).
+        </p>
+        <div className="space-y-3">
+          <button 
+            onClick={() => seedLevel('gradeA1A2', 'A1-A2: Từ Vựng Cơ Bản', 'unitA1A2', 'Từ vựng A1-A2', a1a2Words, 'a1a2', setLoadingA1A2)}
+            disabled={loading || Object.values(loadingGrades).some(Boolean) || loadingB1 || loadingB2 || loadingC1C2 || loadingA1A2 || generatingAIA1A2}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition-colors disabled:opacity-70"
+          >
+            {loadingA1A2 ? 'Đang xử lý...' : 'Chạy Seed A1-A2 (Mẫu)'}
+          </button>
+
+          <button 
+            onClick={handleGenerateAIA1A2}
+            disabled={loading || Object.values(loadingGrades).some(Boolean) || loadingB1 || loadingB2 || loadingC1C2 || loadingA1A2 || generatingAIA1A2}
+            className="w-full bg-white border-2 border-blue-600 text-blue-600 hover:bg-blue-50 font-bold py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70"
+          >
+            {generatingAIA1A2 ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Đang tạo {aiProgressA1A2.current}/{aiProgressA1A2.total}...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-5 h-5" />
+                Tạo 1500 từ A1-A2 bằng AI
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
       {/* 1000 Words Seed */}
       <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 text-center">
         <div className="bg-blue-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -683,6 +848,29 @@ export default function SeedPage() {
               </>
             )}
           </button>
+        </div>
+      </div>
+
+      {/* AI Quiz Generation */}
+      <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 text-center md:col-span-2">
+        <div className="bg-amber-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+          <Brain className="w-8 h-8 text-amber-500" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800 mb-2">AI Quiz Generation</h2>
+        <p className="text-slate-500 mb-8 text-sm">
+          Tạo hàng ngàn câu đố theo từng cấp độ lớp (6, 7, 8, 9) và các trình độ khác nhau bằng AI.
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {['grade6', 'grade7', 'grade8', 'grade9', 'A1-A2', 'B1', 'B2', 'C1-C2'].map((level) => (
+            <button
+              key={level}
+              onClick={() => handleGenerateAIQuiz(level)}
+              disabled={generatingAIQuiz}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 px-4 rounded-xl transition-colors disabled:opacity-70"
+            >
+              {generatingAIQuiz ? '...' : `Tạo Quiz ${level}`}
+            </button>
+          ))}
         </div>
       </div>
 

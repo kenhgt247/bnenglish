@@ -2,7 +2,7 @@ export const grade9Data = {
   grade: {
     id: 'grade9',
     name: 'Tiếng Anh Lớp 9 (Global Success)',
-    order: 9
+    order: 4
   },
   units: [
     {

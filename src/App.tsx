@@ -25,6 +25,7 @@ import IrregularVerbsPage from './pages/IrregularVerbsPage';
 import SpeakingPage from './features/practice/speaking/SpeakingPage';
 import ListeningPage from './features/practice/listening/ListeningPage';
 import SpellingPage from './features/practice/spelling/SpellingPage';
+import DictationPage from './features/practice/dictation/DictationPage';
 
 function App() {
   const { setUser, fetchProfile, loading } = useAuthStore();
@@ -65,6 +66,7 @@ function App() {
           <Route path="practice/speaking/:gradeId/:unitId/:lessonId" element={<SpeakingPage />} />
           <Route path="practice/listening/:gradeId/:unitId/:lessonId" element={<ListeningPage />} />
           <Route path="practice/spelling/:gradeId/:unitId/:lessonId" element={<SpellingPage />} />
+          <Route path="practice/dictation/:gradeId/:unitId/:lessonId" element={<DictationPage />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="seed" element={<SeedPage />} />
           <Route path="teacher" element={<AITeacherPage />} />

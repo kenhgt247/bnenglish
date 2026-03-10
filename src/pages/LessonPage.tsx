@@ -142,6 +142,12 @@ export default function LessonPage() {
                 >
                   <Keyboard className="w-5 h-5" /> Nghe & Viết (Spelling Bee)
                 </Link>
+                <Link 
+                  to={`/practice/dictation/${gradeId}/${unitId}/${lessonId}`} 
+                  className="flex-1 bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                >
+                  <FileText className="w-5 h-5" /> Chép chính tả
+                </Link>
               </div>
             </div>
           </div>

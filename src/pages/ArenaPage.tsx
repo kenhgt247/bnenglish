@@ -5,9 +5,8 @@ import { GoogleGenAI } from "@google/genai";
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useAuthStore } from '../store/useAuthStore';
-import { db } from '../lib/firebase';
-import { collection, doc, setDoc, onSnapshot, updateDoc, deleteDoc, query, where, getDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
+import { io, Socket } from 'socket.io-client';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -46,158 +45,125 @@ interface Room {
 
 export default function ArenaPage() {
   const { user, profile } = useAuthStore();
+  const [socket, setSocket] = useState<Socket | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
-  const currentRoomRef = useRef<Room | null>(null);
   const [gameState, setGameState] = useState<'lobby' | 'room' | 'battle' | 'result'>('lobby');
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(15);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
-  const [battleLog, setBattleLog] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createOptions, setCreateOptions] = useState({ grade: '6', mode: 'ai' as 'ai' | 'pvp', type: '1v1' as '1v1' | '2v2' });
   const [shake, setShake] = useState(false);
   const [gameResult, setGameResult] = useState<{ reason: string, players: Player[] } | null>(null);
-  const aiTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [guestId] = useState(() => `guest_${Math.random().toString(36).substring(2, 8)}`);
   const playerId = user?.uid || guestId;
   const playerName = profile?.displayName || user?.email || `Guest ${playerId.substring(6, 10)}`;
 
   useEffect(() => {
-    currentRoomRef.current = currentRoom;
-  }, [currentRoom]);
+    // Connect to Socket.io server
+    const newSocket = io(window.location.origin);
+    setSocket(newSocket);
 
-  // Listen to available rooms
-  useEffect(() => {
-    const q = query(collection(db, 'arena_rooms'), where('status', '==', 'waiting'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const availableRooms: Room[] = [];
-      snapshot.forEach((doc) => {
-        const room = { id: doc.id, ...doc.data() } as Room;
-        if (room.mode === 'pvp') {
-          availableRooms.push(room);
-        }
-      });
-      setRooms(availableRooms);
-    }, (error) => {
-      console.error("Error fetching rooms:", error);
-      if (error.code === 'permission-denied') {
-        toast.error("Không có quyền truy cập Đấu trường. Vui lòng đăng nhập.");
+    newSocket.on('connect', () => {
+      console.log('Connected to Arena server');
+    });
+
+    newSocket.on('update_rooms', (updatedRooms: Room[]) => {
+      setRooms(updatedRooms);
+    });
+
+    newSocket.on('room_created', (room: Room) => {
+      setCurrentRoom(room);
+      setGameState('room');
+    });
+
+    newSocket.on('room_updated', (room: Room) => {
+      setCurrentRoom(room);
+    });
+
+    newSocket.on('request_questions', async ({ roomId, grade }) => {
+      // Only the first player (host) generates questions
+      setCurrentRoom(prev => prev ? { ...prev, status: 'playing' } : null);
+      if (newSocket.id === currentRoom?.players[0]?.id || !currentRoom) {
+        await generateQuestions(roomId, grade, newSocket);
       }
     });
 
-    return () => unsubscribe();
+    newSocket.on('game_started', ({ questions: newQuestions }) => {
+      setQuestions(newQuestions);
+      setCurrentQuestionIndex(0);
+      setGameState('battle');
+      setTimeLeft(15);
+      setSelectedAnswer(null);
+      setIsCorrect(null);
+    });
+
+    newSocket.on('player_action', ({ playerId: actionPlayerId, isCorrect: actionIsCorrect, hp, score }) => {
+      setCurrentRoom(prev => {
+        if (!prev) return prev;
+        const newPlayers = [...prev.players];
+        let newAi = prev.ai ? { ...prev.ai } : null;
+
+        if (actionPlayerId === 'ai' && newAi) {
+          newAi.hp = hp;
+          newAi.score = score;
+          newAi.hasAnswered = true;
+          newAi.isCorrect = actionIsCorrect;
+        } else {
+          const pIndex = newPlayers.findIndex(p => p.id === actionPlayerId);
+          if (pIndex !== -1) {
+            newPlayers[pIndex].hp = hp;
+            newPlayers[pIndex].score = score;
+            newPlayers[pIndex].hasAnswered = true;
+            newPlayers[pIndex].isCorrect = actionIsCorrect;
+          }
+        }
+
+        return { ...prev, players: newPlayers, ai: newAi };
+      });
+    });
+
+    newSocket.on('next_question', ({ questionIndex }) => {
+      setCurrentQuestionIndex(questionIndex);
+      setSelectedAnswer(null);
+      setIsCorrect(null);
+      setTimeLeft(15);
+      setCurrentRoom(prev => {
+        if (!prev) return prev;
+        const newPlayers = prev.players.map(p => ({ ...p, hasAnswered: false, isCorrect: null }));
+        const newAi = prev.ai ? { ...prev.ai, hasAnswered: false, isCorrect: null } : null;
+        return { ...prev, players: newPlayers, ai: newAi };
+      });
+    });
+
+    newSocket.on('game_ended', ({ reason, players }) => {
+      setGameResult({ reason, players });
+      setGameState('result');
+    });
+
+    newSocket.on('error', (msg) => {
+      toast.error(msg);
+    });
+
+    return () => {
+      newSocket.disconnect();
+    };
   }, []);
 
-  // Listen to current room
-  useEffect(() => {
-    if (!currentRoom?.id) return;
-
-    const unsubscribe = onSnapshot(doc(db, 'arena_rooms', currentRoom.id), async (docSnap) => {
-      if (docSnap.exists()) {
-        const roomData = { id: docSnap.id, ...docSnap.data() } as Room;
-        setCurrentRoom(roomData);
-
-        if (roomData.status === 'playing' && gameState !== 'battle') {
-          if (roomData.questions && roomData.questions.length > 0) {
-            setQuestions(roomData.questions);
-            setGameState('battle');
-            setCurrentQuestionIndex(roomData.currentQuestionIndex || 0);
-            setTimeLeft(15);
-            setBattleLog([]);
-          } else if (roomData.players[0].id === playerId && !isGenerating) {
-            // Host generates questions
-            generateQuestions(roomData.id, roomData.grade);
-          }
-        } else if (roomData.status === 'finished' && gameState !== 'result') {
-          setGameResult(roomData.gameResult || null);
-          setGameState('result');
-        } else if (roomData.status === 'playing' && gameState === 'battle') {
-           // Handle next question
-           if (roomData.currentQuestionIndex !== undefined && roomData.currentQuestionIndex !== currentQuestionIndex) {
-             setCurrentQuestionIndex(roomData.currentQuestionIndex);
-             setSelectedAnswer(null);
-             setIsCorrect(null);
-             setTimeLeft(15);
-           }
-        }
-      } else {
-        // Room deleted
-        if (gameState !== 'lobby') {
-          setGameState('lobby');
-          setCurrentRoom(null);
-          toast.error("Phòng đã bị đóng.");
-        }
-      }
-    }, (error) => {
-      console.error("Error fetching current room:", error);
-      if (error.code === 'permission-denied') {
-        toast.error("Mất kết nối với phòng đấu. Vui lòng thử lại.");
-        setGameState('lobby');
-        setCurrentRoom(null);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [currentRoom?.id, gameState, currentQuestionIndex, playerId, isGenerating]);
-
-  // AI Logic
-  useEffect(() => {
-    if (gameState === 'battle' && currentRoom?.mode === 'ai' && currentRoom.status === 'playing') {
-      const room = currentRoom;
-      if (room.ai && !room.ai.hasAnswered && room.currentQuestionIndex === currentQuestionIndex) {
-        if (!aiTimerRef.current) {
-          const aiDelay = Math.floor(Math.random() * 5000) + 3000;
-          aiTimerRef.current = setTimeout(() => {
-            handleAIAnswer(room);
-            aiTimerRef.current = null;
-          }, aiDelay);
-        }
-      }
-    }
-    return () => {
-      if (aiTimerRef.current) {
-        clearTimeout(aiTimerRef.current);
-        aiTimerRef.current = null;
-      }
-    };
-  }, [gameState, currentRoom, currentQuestionIndex]);
-
-  const handleAIAnswer = async (room: Room) => {
-    if (!room.questions) return;
-    const isCorrect = Math.random() < 0.7;
-    const currentQuestion = room.questions[room.currentQuestionIndex || 0];
-    const answer = isCorrect ? currentQuestion.correctAnswer : "wrong_answer";
-    
-    // Update AI state
-    const newAi = { ...room.ai!, hasAnswered: true, isCorrect };
-    let newPlayers = [...room.players];
-    
-    if (isCorrect) {
-      newAi.score += 15;
-      newPlayers = newPlayers.map(p => ({ ...p, hp: Math.max(0, p.hp - 15) }));
-    } else {
-      newAi.hp = Math.max(0, newAi.hp - 10);
-      newPlayers = newPlayers.map(p => ({ ...p, score: p.score + 10 }));
-    }
-
-    await updateDoc(doc(db, 'arena_rooms', room.id), {
-      ai: newAi,
-      players: newPlayers
-    });
-
-    checkRoundEnd({ ...room, ai: newAi, players: newPlayers });
-  };
-
-  const generateQuestions = async (roomId: string, grade: string) => {
+  const generateQuestions = async (roomId: string, grade: string, activeSocket: Socket) => {
     setIsGenerating(true);
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) throw new Error("API key is missing.");
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        // Fallback to server-side generation if needed, but we do it client-side for now
+        // Wait, the instructions say to use process.env.GEMINI_API_KEY
+        throw new Error("API key is missing.");
+      }
       
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
@@ -207,14 +173,10 @@ export default function ArenaPage() {
       });
       
       const generatedQuestions = JSON.parse(response.text || "[]");
-      await updateDoc(doc(db, 'arena_rooms', roomId), {
-        questions: generatedQuestions,
-        currentQuestionIndex: 0
-      });
+      activeSocket.emit('set_questions', { roomId, questions: generatedQuestions });
     } catch (error) {
       console.error("Failed to generate questions:", error);
       toast.error("Lỗi tạo câu hỏi. Vui lòng thử lại.");
-      await deleteDoc(doc(db, 'arena_rooms', roomId));
       setGameState('lobby');
       setCurrentRoom(null);
     } finally {
@@ -222,165 +184,47 @@ export default function ArenaPage() {
     }
   };
 
-  const createRoom = async (grade: string, mode: 'ai' | 'pvp', type: '1v1' | '2v2' = '1v1') => {
-    const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const newRoom: Room = {
-      id: roomId,
-      grade,
-      mode,
-      type,
-      players: [{ id: playerId, name: playerName, score: 0, hp: 100, ready: mode === 'ai', hasAnswered: false }],
-      ai: mode === 'ai' ? { id: 'ai', name: 'Gemini AI', hp: 100, score: 0, hasAnswered: false } : null,
-      status: 'waiting',
-      createdAt: Date.now()
-    };
-
-    await setDoc(doc(db, 'arena_rooms', roomId), newRoom);
-    setCurrentRoom(newRoom);
-    setGameState('room');
-  };
-
-  const joinRoom = async (roomId: string) => {
-    const roomRef = doc(db, 'arena_rooms', roomId);
-    const roomSnap = await getDoc(roomRef);
-    if (roomSnap.exists()) {
-      const room = roomSnap.data() as Room;
-      
-      const existingPlayer = room.players.find(p => p.id === playerId);
-      if (existingPlayer) {
-        setCurrentRoom(room);
-        setGameState(room.status === 'playing' ? 'battle' : 'room');
-        return;
-      }
-
-      if (room.status === 'waiting' && room.mode === 'pvp' && room.players.length < (room.type === '1v1' ? 2 : 4)) {
-        const newPlayers = [...room.players, { id: playerId, name: playerName, score: 0, hp: 100, ready: false, hasAnswered: false }];
-        await updateDoc(roomRef, { players: newPlayers });
-        setCurrentRoom({ ...room, players: newPlayers });
-        setGameState('room');
-      } else {
-        toast.error("Phòng đã đầy hoặc đang chơi.");
-      }
-    } else {
-      toast.error("Phòng không tồn tại.");
+  const createRoom = (grade: string, mode: 'ai' | 'pvp', type: '1v1' | '2v2' = '1v1') => {
+    if (socket) {
+      socket.emit('create_room', { grade, mode, type, playerName });
     }
   };
 
-  const toggleReady = async () => {
-    if (!currentRoom) return;
-    const roomRef = doc(db, 'arena_rooms', currentRoom.id);
-    const newPlayers = currentRoom.players.map(p => p.id === playerId ? { ...p, ready: !p.ready } : p);
-    
-    const allReady = newPlayers.every(p => p.ready);
-    const isFull = newPlayers.length >= (currentRoom.type === '1v1' ? 2 : 4);
-    
-    if (allReady && isFull) {
-      await updateDoc(roomRef, { players: newPlayers, status: 'playing' });
-    } else {
-      await updateDoc(roomRef, { players: newPlayers });
+  const joinRoom = (roomId: string) => {
+    if (socket) {
+      socket.emit('join_room', { roomId, playerName });
     }
   };
 
-  const startBattle = async () => {
-    if (currentRoom && currentRoom.mode === 'ai') {
-      await updateDoc(doc(db, 'arena_rooms', currentRoom.id), { status: 'playing' });
+  const toggleReady = () => {
+    if (socket && currentRoom) {
+      socket.emit('toggle_ready', currentRoom.id);
     }
   };
 
-  const leaveRoom = async () => {
-    if (currentRoom) {
-      const roomRef = doc(db, 'arena_rooms', currentRoom.id);
-      const newPlayers = currentRoom.players.filter(p => p.id !== playerId);
-      if (newPlayers.length === 0) {
-        await deleteDoc(roomRef);
-      } else {
-        await updateDoc(roomRef, { players: newPlayers });
-      }
+  const startBattle = () => {
+    if (socket && currentRoom && currentRoom.mode === 'ai') {
+      socket.emit('start_ai_battle', currentRoom.id);
+    }
+  };
+
+  const leaveRoom = () => {
+    if (socket) {
+      socket.emit('leave_room');
     }
     setGameState('lobby');
     setCurrentRoom(null);
   };
 
-  const submitAnswer = async (answer: string) => {
-    if (selectedAnswer !== null || !currentRoom || !currentRoom.questions) return;
+  const submitAnswer = (answer: string) => {
+    if (selectedAnswer !== null || !currentRoom || !socket) return;
     
     setSelectedAnswer(answer);
-    const correct = answer === currentRoom.questions[currentQuestionIndex].correctAnswer;
+    const correct = answer === questions[currentQuestionIndex].correctAnswer;
     setIsCorrect(correct);
     
     const timeTaken = (15 - timeLeft) * 1000;
-    
-    // Update local player state
-    let newPlayers = [...currentRoom.players];
-    let newAi = currentRoom.ai ? { ...currentRoom.ai } : null;
-    
-    const playerIndex = newPlayers.findIndex(p => p.id === playerId);
-    if (playerIndex === -1) return;
-    
-    newPlayers[playerIndex].hasAnswered = true;
-    newPlayers[playerIndex].isCorrect = correct;
-    
-    if (correct) {
-      newPlayers[playerIndex].score += Math.max(10, 20 - Math.floor(timeTaken / 1000));
-      if (currentRoom.mode === 'ai' && newAi) {
-        newAi.hp = Math.max(0, newAi.hp - 15);
-      } else {
-        newPlayers = newPlayers.map(p => p.id !== playerId ? { ...p, hp: Math.max(0, p.hp - 15) } : p);
-      }
-    } else {
-      newPlayers[playerIndex].hp = Math.max(0, newPlayers[playerIndex].hp - 10);
-      if (currentRoom.mode === 'ai' && newAi) {
-        newAi.score += 10;
-      } else {
-        newPlayers = newPlayers.map(p => p.id !== playerId ? { ...p, score: p.score + 10 } : p);
-      }
-    }
-
-    const updatedRoom = { ...currentRoom, players: newPlayers, ai: newAi };
-    await updateDoc(doc(db, 'arena_rooms', currentRoom.id), {
-      players: newPlayers,
-      ai: newAi
-    });
-
-    checkRoundEnd(updatedRoom);
-  };
-
-  const checkRoundEnd = async (room: Room) => {
-    // Only host checks round end to avoid duplicate updates
-    if (room.players[0].id !== playerId) return;
-
-    const anyDead = room.players.some(p => p.hp <= 0) || (room.mode === 'ai' && room.ai && room.ai.hp <= 0);
-    if (anyDead) {
-      await updateDoc(doc(db, 'arena_rooms', room.id), {
-        status: 'finished',
-        gameResult: { reason: "K.O.", players: room.players }
-      });
-      return;
-    }
-
-    const allPlayersAnswered = room.players.every(p => p.hasAnswered);
-    const aiAnswered = room.mode === 'pvp' || (room.ai && room.ai.hasAnswered);
-    
-    if (allPlayersAnswered && aiAnswered) {
-      setTimeout(async () => {
-        const resetPlayers = room.players.map(p => ({ ...p, hasAnswered: false, isCorrect: null }));
-        const resetAi = room.ai ? { ...room.ai, hasAnswered: false, isCorrect: null } : null;
-        const nextIndex = (room.currentQuestionIndex || 0) + 1;
-        
-        if (room.questions && nextIndex >= room.questions.length) {
-          await updateDoc(doc(db, 'arena_rooms', room.id), {
-            status: 'finished',
-            gameResult: { reason: "Hết câu hỏi", players: resetPlayers }
-          });
-        } else {
-          await updateDoc(doc(db, 'arena_rooms', room.id), {
-            players: resetPlayers,
-            ai: resetAi,
-            currentQuestionIndex: nextIndex
-          });
-        }
-      }, 2000);
-    }
+    socket.emit('submit_answer', { roomId: currentRoom.id, answer, timeTaken });
   };
 
   useEffect(() => {
@@ -391,26 +235,6 @@ export default function ArenaPage() {
       submitAnswer("");
     }
   }, [timeLeft, gameState, selectedAnswer]);
-
-  // Clean up empty rooms on unmount
-  useEffect(() => {
-    return () => {
-      if (currentRoomRef.current && currentRoomRef.current.status === 'waiting') {
-        const roomRef = doc(db, 'arena_rooms', currentRoomRef.current.id);
-        getDoc(roomRef).then(snap => {
-           if(snap.exists()) {
-             const room = snap.data() as Room;
-             const newPlayers = room.players.filter(p => p.id !== playerId);
-             if (newPlayers.length === 0) {
-               deleteDoc(roomRef);
-             } else {
-               updateDoc(roomRef, { players: newPlayers });
-             }
-           }
-        });
-      }
-    };
-  }, []);
 
   if (isGenerating) {
     return (
@@ -470,7 +294,7 @@ export default function ArenaPage() {
   }
 
   if (gameState === 'room' && currentRoom) {
-    const isMeReady = currentRoom.players.find(p => p.id === playerId)?.ready;
+    const isMeReady = currentRoom.players.find(p => p.id === socket?.id)?.ready;
     return (
       <div className="min-h-screen bg-slate-950 text-white p-4 flex items-center justify-center">
         <div className="max-w-md w-full bg-slate-900 p-8 rounded-3xl text-center relative">
@@ -484,7 +308,7 @@ export default function ArenaPage() {
                 <div className={cn("w-16 h-16 rounded-full border-4 flex items-center justify-center mb-2", p.ready ? "border-emerald-500" : "border-slate-700")}>
                   <User className={cn("w-8 h-8", p.ready ? "text-emerald-400" : "text-slate-500")} />
                 </div>
-                <div className="text-xs font-bold">{p.name}</div>
+                <div className="text-xs font-bold">{p.name} {p.id === socket?.id ? '(You)' : ''}</div>
               </div>
             ))}
             {currentRoom.mode === 'ai' && currentRoom.ai && (
@@ -510,8 +334,8 @@ export default function ArenaPage() {
 
   if (gameState === 'battle' && questions.length > 0) {
     const currentQuestion = questions[currentQuestionIndex];
-    const player = currentRoom?.players.find(p => p.id === playerId) || currentRoom?.players[0];
-    const opponent = currentRoom?.mode === 'ai' ? currentRoom.ai : currentRoom?.players.find(p => p.id !== playerId);
+    const player = currentRoom?.players.find(p => p.id === socket?.id) || currentRoom?.players[0];
+    const opponent = currentRoom?.mode === 'ai' ? currentRoom.ai : currentRoom?.players.find(p => p.id !== socket?.id);
 
     return (
       <div className="min-h-screen bg-slate-950 text-white p-4 font-sans flex flex-col">
@@ -541,7 +365,7 @@ export default function ArenaPage() {
   }
 
   if (gameState === 'result' && currentRoom) {
-    const isWin = currentRoom.players.find(p => p.id === playerId)?.hp! > 0;
+    const isWin = currentRoom.players.find(p => p.id === socket?.id)?.hp! > 0;
     return (
       <div className="min-h-screen bg-slate-950 text-white p-6 flex items-center justify-center">
         <div className="bg-slate-900 p-12 rounded-3xl text-center max-w-md w-full border border-slate-800">
@@ -554,7 +378,7 @@ export default function ArenaPage() {
           <div className="space-y-4 mb-8 text-left">
             {currentRoom.players.map(p => (
               <div key={p.id} className="bg-slate-800 p-4 rounded-xl flex justify-between items-center">
-                <span className="font-bold">{p.name}</span>
+                <span className="font-bold">{p.name} {p.id === socket?.id ? '(You)' : ''}</span>
                 <span className="text-emerald-400 font-mono">{p.score} pts</span>
               </div>
             ))}
@@ -576,3 +400,4 @@ export default function ArenaPage() {
 
   return null;
 }
+

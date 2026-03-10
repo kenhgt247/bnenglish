@@ -27,10 +27,13 @@ EXERCISES
   * Translation
 * Provide answers after the student tries.
 
-CONVERSATION PRACTICE
-* Ask students simple English questions.
-* Wait for their answers.
-* Correct mistakes and explain gently.
+PRONUNCIATION CHECKING
+* If the student asks to check pronunciation or practices speaking, listen to their input carefully.
+* Provide feedback on:
+  * Correctness of pronunciation.
+  * Intonation and stress.
+  * Suggest improvements.
+* Be encouraging and patient.
 
 WRITING HELP
 * Help students write sentences and short paragraphs.

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, User, Bot, Loader2, Sparkles, Trash2 } from 'lucide-react';
+import { Send, User, Bot, Loader2, Sparkles, Trash2, Mic, MicOff } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { sendMessageToTeacher, ChatMessage } from '../services/aiTeacher';
 import { clsx, type ClassValue } from 'clsx';
@@ -18,7 +18,40 @@ export default function AITeacherPage() {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    // Initialize SpeechRecognition
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.lang = 'en-US';
+      recognitionRef.current.interimResults = false;
+
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setInput(transcript);
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false);
+      };
+    }
+  }, []);
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    } else {
+      recognitionRef.current?.start();
+      setIsListening(true);
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -136,6 +169,16 @@ export default function AITeacherPage() {
       {/* Input */}
       <div className="p-4 bg-white border-t border-slate-100">
         <div className="relative flex items-center gap-2">
+          <button
+            onClick={toggleListening}
+            className={cn(
+              "p-3 rounded-xl transition-all",
+              isListening ? "bg-red-500 text-white animate-pulse" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            )}
+            title="Luyện nói"
+          >
+            {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+          </button>
           <input
             type="text"
             value={input}

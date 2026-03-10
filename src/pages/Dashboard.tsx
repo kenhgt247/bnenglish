@@ -3,11 +3,12 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuthStore } from '../store/useAuthStore';
 import { Navigate } from 'react-router-dom';
-import { Flame, BookOpen, BrainCircuit, Calendar, Mic, Volume2, Star, Coins } from 'lucide-react';
+import { Flame, BookOpen, BrainCircuit, Calendar, Mic, Volume2, Star, Coins, MessageSquare, PenTool, Headphones, BookOpenText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DailyPlanWidget from '../features/dailyPlan/components/DailyPlanWidget';
 import WeeklyLeaderboard from '../features/gamification/components/WeeklyLeaderboard';
 import { checkAndUpdateStreak } from '../features/gamification/gamificationService';
+import SkillCard from '../features/englishSkills/components/SkillCard';
 
 export default function Dashboard() {
   const { user, profile } = useAuthStore();
@@ -99,6 +100,37 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <DailyPlanWidget />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <SkillCard 
+              title="Nói & Phát âm" 
+              description="Luyện nói với AI và kiểm tra phát âm" 
+              icon={Mic} 
+              color="emerald" 
+              onClick={() => {}} 
+            />
+            <SkillCard 
+              title="Viết & Ngữ pháp" 
+              description="AI sửa lỗi viết và xây dựng câu" 
+              icon={PenTool} 
+              color="orange" 
+              onClick={() => {}} 
+            />
+            <SkillCard 
+              title="Nghe & Từ vựng" 
+              description="Luyện nghe chép chính tả và flashcards" 
+              icon={Headphones} 
+              color="blue" 
+              onClick={() => {}} 
+            />
+            <SkillCard 
+              title="Đọc hiểu" 
+              description="Tóm tắt đoạn văn và trả lời câu hỏi" 
+              icon={BookOpenText} 
+              color="purple" 
+              onClick={() => {}} 
+            />
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-orange-50 p-6 rounded-3xl border border-orange-100 flex items-center gap-4">

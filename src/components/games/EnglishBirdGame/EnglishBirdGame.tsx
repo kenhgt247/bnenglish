@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GameCanvas } from './GameCanvas';
 import { QuizModal } from './QuizModal';
 import { mockQuizData } from './gameData';
-import { Home, RotateCcw } from 'lucide-react';
+import { Home, RotateCcw, Maximize2, Minimize2 } from 'lucide-react';
 import { RotateDeviceOverlay } from './RotateDeviceOverlay';
 
 interface EnglishBirdGameProps {
@@ -13,6 +13,7 @@ export const EnglishBirdGame: React.FC<EnglishBirdGameProps> = ({ onExit }) => {
   const [gameState, setGameState] = useState<'playing' | 'paused' | 'gameover'>('playing');
   const [score, setScore] = useState(0);
   const [stamina, setStamina] = useState(100);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentQuiz, setCurrentQuiz] = useState<any | null>(null);
   const [timeLeft, setTimeLeft] = useState(5);
   const gameRef = useRef<any>(null);
@@ -49,6 +50,24 @@ export const EnglishBirdGame: React.FC<EnglishBirdGameProps> = ({ onExit }) => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [currentQuiz]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
 
   const handlePassColumn = useCallback(() => {
     setGameState('paused');
@@ -107,9 +126,12 @@ export const EnglishBirdGame: React.FC<EnglishBirdGameProps> = ({ onExit }) => {
           <Home size={24} />
         </button>
       </div>
-      <div className="absolute top-4 right-4 z-20">
+      <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
         <button onClick={() => window.location.reload()} className="p-3 bg-white rounded-full shadow-lg text-slate-700 hover:bg-slate-100">
           <RotateCcw size={24} />
+        </button>
+        <button onClick={toggleFullscreen} className="p-3 bg-white rounded-full shadow-lg text-slate-700 hover:bg-slate-100">
+          {isFullscreen ? <Minimize2 size={24} /> : <Maximize2 size={24} />}
         </button>
       </div>
 
@@ -130,17 +152,6 @@ export const EnglishBirdGame: React.FC<EnglishBirdGameProps> = ({ onExit }) => {
           score={score}
         />
       </div>
-      {gameState === 'playing' && (
-        <div className="w-full flex flex-col items-center gap-2">
-          <button 
-            onClick={() => gameRef.current?.jump()}
-            className="bg-blue-500 text-white py-6 px-12 rounded-2xl font-bold text-xl w-full max-w-xs shadow-lg hover:bg-blue-600 transition-all active:scale-95"
-          >
-            JUMP!
-          </button>
-          <p className="text-slate-500 text-sm">Nhấn Space hoặc Chạm vào màn hình để nhảy</p>
-        </div>
-      )}
       {gameState === 'gameover' && (
         <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-4 z-10">
           <h2 className="text-4xl font-bold text-red-600">Game Over!</h2>

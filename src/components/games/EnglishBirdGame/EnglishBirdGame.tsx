@@ -114,7 +114,7 @@ export const EnglishBirdGame: React.FC<EnglishBirdGameProps> = ({ onExit }) => {
   }, []);
 
   return (
-    <div className="relative flex flex-col items-center w-full h-screen bg-sky-100 overflow-hidden">
+    <div className="relative flex flex-col items-center w-full h-[100dvh] bg-sky-100 overflow-hidden">
       {/* Portrait Overlay - Only visible on mobile in portrait mode */}
       <div className="hidden [@media(orientation:portrait)]:flex">
         <RotateDeviceOverlay />

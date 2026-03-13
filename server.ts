@@ -24,7 +24,6 @@ async function startServer() {
   const rooms = new Map();
 
   app.use((req, res, next) => {
-    console.log(`Request: ${req.method} ${req.url}`);
     next();
   });
 
@@ -252,7 +251,6 @@ async function startServer() {
     rooms.delete(roomId);
   }
 
-  console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -261,12 +259,8 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    if (!fs.existsSync(distPath)) {
-      console.error(`Dist path does not exist: ${distPath}`);
-    }
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
-      console.log(`Catch-all route hit for: ${req.url}`);
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GameCanvas } from './GameCanvas';
 import { QuizModal } from './QuizModal';
 import { mockQuizData } from './gameData';
@@ -50,12 +50,11 @@ export const EnglishBirdGame: React.FC<EnglishBirdGameProps> = ({ onExit }) => {
     };
   }, [currentQuiz]);
 
-  const handlePassColumn = () => {
+  const handlePassColumn = useCallback(() => {
     setGameState('paused');
-    // Sort questions by difficulty if needed, here we just pick randomly
     const randomQuiz = mockQuizData[Math.floor(Math.random() * mockQuizData.length)];
     setCurrentQuiz(randomQuiz);
-  };
+  }, []);
 
   const handleAnswer = (index: number) => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -69,9 +68,9 @@ export const EnglishBirdGame: React.FC<EnglishBirdGameProps> = ({ onExit }) => {
     }
   };
 
-  const handleGameOver = () => {
+  const handleGameOver = useCallback(() => {
     setGameState('gameover');
-  };
+  }, []);
 
   useEffect(() => {
     if (gameState !== 'playing') return;
@@ -87,9 +86,13 @@ export const EnglishBirdGame: React.FC<EnglishBirdGameProps> = ({ onExit }) => {
     return () => clearInterval(interval);
   }, [gameState]);
 
-  const handleCollectItem = () => {
+  const handleCollectItem = useCallback(() => {
     setStamina(s => Math.min(100, s + 10));
-  };
+  }, []);
+
+  const setGameRef = useCallback((ref: any) => {
+    gameRef.current = ref;
+  }, []);
 
   return (
     <div className="relative flex flex-col items-center w-full h-screen bg-sky-100 overflow-hidden">
@@ -123,7 +126,7 @@ export const EnglishBirdGame: React.FC<EnglishBirdGameProps> = ({ onExit }) => {
           onGameOver={handleGameOver} 
           onCollectItem={handleCollectItem}
           isPaused={gameState !== 'playing'}
-          setGameRef={(ref) => (gameRef.current = ref)}
+          setGameRef={setGameRef}
           score={score}
         />
       </div>

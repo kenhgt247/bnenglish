@@ -13,6 +13,11 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onPassColumn, onGameOver
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const jumpRef = useRef<() => void>(() => {});
+  const scoreRef = useRef(score);
+
+  useEffect(() => {
+    scoreRef.current = score;
+  }, [score]);
   
   // Persistent state
   const birdY = useRef(0);
@@ -32,7 +37,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onPassColumn, onGameOver
       canvas.width = container.clientWidth;
       canvas.height = container.clientHeight;
       if (birdY.current === 0) birdY.current = canvas.height / 2;
-      if (columns.current.length === 0) columns.current = [{ x: canvas.width, gapY: canvas.height / 2 }];
+      if (columns.current.length === 0) columns.current = [{ x: canvas.width / 2, gapY: canvas.height / 2 }];
     };
     
     const observer = new ResizeObserver(resize);
@@ -43,7 +48,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onPassColumn, onGameOver
     const gravity = 0.0012;
     const jumpForce = -0.25;
     const baseColumnSpeed = 0.15; // Increased speed
-    const columnSpeed = baseColumnSpeed + (score * 0.01);
     
     let animationId: number;
 
@@ -56,6 +60,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onPassColumn, onGameOver
 
       const dt = currentTime - lastTime.current;
       lastTime.current = currentTime;
+      
+      const columnSpeed = baseColumnSpeed + (scoreRef.current * 0.01);
 
       // Physics
       birdVelocity.current += gravity * dt;
@@ -149,7 +155,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onPassColumn, onGameOver
       cancelAnimationFrame(animationId);
       observer.disconnect();
     };
-  }, [isPaused, onGameOver, onPassColumn, setGameRef, score]);
+  }, [isPaused, onGameOver, onPassColumn, setGameRef]);
 
   return (
     <div ref={containerRef} className="w-full h-full bg-sky-200 border-4 border-slate-800 rounded-xl overflow-hidden cursor-pointer" 

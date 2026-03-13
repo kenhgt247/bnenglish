@@ -150,7 +150,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onPassColumn, onGameOver
 
     animationId = requestAnimationFrame(gameLoop);
     const jump = () => (birdVelocity.current = jumpForce);
-    setGameRef({ jump });
+    const reset = () => {
+        birdY.current = canvas.height / 2;
+        birdVelocity.current = 0;
+        columns.current = [];
+        items.current = [];
+    };
+    setGameRef({ jump, reset });
     jumpRef.current = jump;
 
     return () => {

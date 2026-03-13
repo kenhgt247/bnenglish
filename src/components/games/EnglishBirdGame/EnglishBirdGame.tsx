@@ -15,7 +15,7 @@ export const EnglishBirdGame: React.FC<EnglishBirdGameProps> = ({ onExit }) => {
   const [stamina, setStamina] = useState(100);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentQuiz, setCurrentQuiz] = useState<any | null>(null);
-  const [timeLeft, setTimeLeft] = useState(5);
+  const [timeLeft, setTimeLeft] = useState(10);
   const gameRef = useRef<any>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -31,7 +31,7 @@ export const EnglishBirdGame: React.FC<EnglishBirdGameProps> = ({ onExit }) => {
 
   useEffect(() => {
     if (currentQuiz) {
-      setTimeLeft(5);
+      setTimeLeft(10);
       timerRef.current = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
@@ -101,7 +101,7 @@ export const EnglishBirdGame: React.FC<EnglishBirdGameProps> = ({ onExit }) => {
         }
         return s - 1;
       });
-    }, 200);
+    }, 400);
     return () => clearInterval(interval);
   }, [gameState]);
 
@@ -112,6 +112,15 @@ export const EnglishBirdGame: React.FC<EnglishBirdGameProps> = ({ onExit }) => {
   const setGameRef = useCallback((ref: any) => {
     gameRef.current = ref;
   }, []);
+
+  const handlePlayAgain = () => {
+    setGameState('playing');
+    setScore(0);
+    setStamina(100);
+    setCurrentQuiz(null);
+    setTimeLeft(10);
+    gameRef.current?.reset();
+  };
 
   return (
     <div className="relative flex flex-col items-center w-full h-[100dvh] bg-sky-100 overflow-hidden">
@@ -161,7 +170,7 @@ export const EnglishBirdGame: React.FC<EnglishBirdGameProps> = ({ onExit }) => {
             className="w-64 h-64 rounded-xl"
             referrerPolicy="no-referrer"
           />
-          <button onClick={() => window.location.reload()} className="bg-red-500 text-white py-3 px-8 rounded-full font-bold w-full max-w-xs">
+          <button onClick={handlePlayAgain} className="bg-red-500 text-white py-3 px-8 rounded-full font-bold w-full max-w-xs">
             Play Again
           </button>
         </div>

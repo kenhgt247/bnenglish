@@ -45,9 +45,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onPassColumn, onGameOver
     resize();
 
     // Tuned physics
-    const gravity = 0.0012;
-    const jumpForce = -0.25;
-    const baseColumnSpeed = 0.15; // Increased speed
+    const gravity = 0.001; // Slightly reduced gravity
+    const jumpForce = -0.22; // Slightly reduced jump force
+    const baseColumnSpeed = 0.12; // Slightly reduced base speed
+    const minColumnDistance = 400; // Increased minimum distance between columns
     
     let animationId: number;
 
@@ -61,7 +62,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onPassColumn, onGameOver
       const dt = currentTime - lastTime.current;
       lastTime.current = currentTime;
       
-      const columnSpeed = baseColumnSpeed + (scoreRef.current * 0.01);
+      // Difficulty progression: very slow increase
+      const columnSpeed = baseColumnSpeed + (scoreRef.current * 0.005);
 
       // Physics
       birdVelocity.current += gravity * dt;
@@ -98,7 +100,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onPassColumn, onGameOver
       ctx.fillStyle = 'green';
       columns.current.forEach(col => {
         col.x -= columnSpeed * dt;
-        const gapSize = 150;
+        const gapSize = 180; // Increased gap size for easier passage
         ctx.fillRect(col.x, 0, 50, col.gapY - gapSize / 2);
         ctx.fillRect(col.x, col.gapY + gapSize / 2, 50, canvas.height - col.gapY - gapSize / 2);
 
@@ -126,9 +128,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onPassColumn, onGameOver
         }
       });
 
-      // Add column
-      if (columns.current[columns.current.length - 1].x < canvas.width - 200) {
-        columns.current.push({ x: canvas.width, gapY: Math.random() * (canvas.height - 200) + 100 });
+      // Add column with increased distance
+      if (columns.current.length === 0 || columns.current[columns.current.length - 1].x < canvas.width - minColumnDistance) {
+        columns.current.push({ x: canvas.width, gapY: Math.random() * (canvas.height - 300) + 150 });
       }
       
       // Add item

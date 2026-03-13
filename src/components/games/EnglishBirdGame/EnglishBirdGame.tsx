@@ -12,6 +12,7 @@ interface EnglishBirdGameProps {
 export const EnglishBirdGame: React.FC<EnglishBirdGameProps> = ({ onExit }) => {
   const [gameState, setGameState] = useState<'playing' | 'paused' | 'gameover'>('playing');
   const [score, setScore] = useState(0);
+  const [stamina, setStamina] = useState(100);
   const [currentQuiz, setCurrentQuiz] = useState<any | null>(null);
   const [timeLeft, setTimeLeft] = useState(5);
   const gameRef = useRef<any>(null);
@@ -72,6 +73,24 @@ export const EnglishBirdGame: React.FC<EnglishBirdGameProps> = ({ onExit }) => {
     setGameState('gameover');
   };
 
+  useEffect(() => {
+    if (gameState !== 'playing') return;
+    const interval = setInterval(() => {
+      setStamina(s => {
+        if (s <= 0) {
+          setGameState('gameover');
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 200);
+    return () => clearInterval(interval);
+  }, [gameState]);
+
+  const handleCollectItem = () => {
+    setStamina(s => Math.min(100, s + 10));
+  };
+
   return (
     <div className="relative flex flex-col items-center w-full h-screen bg-sky-100 overflow-hidden">
       {/* Portrait Overlay - Only visible on mobile in portrait mode */}
@@ -91,11 +110,18 @@ export const EnglishBirdGame: React.FC<EnglishBirdGameProps> = ({ onExit }) => {
         </button>
       </div>
 
-      <h1 className="text-2xl font-bold mt-4">Score: {score}</h1>
+      <div className="absolute top-4 z-20 flex flex-col items-center gap-1">
+        <h1 className="text-2xl font-bold">Score: {score}</h1>
+        <div className="w-48 h-4 bg-slate-200 rounded-full overflow-hidden">
+          <div className="h-full bg-yellow-500 transition-all duration-300" style={{ width: `${stamina}%` }} />
+        </div>
+      </div>
+      
       <div className="relative w-full h-full flex-grow">
         <GameCanvas 
           onPassColumn={handlePassColumn} 
           onGameOver={handleGameOver} 
+          onCollectItem={handleCollectItem}
           isPaused={gameState !== 'playing'}
           setGameRef={(ref) => (gameRef.current = ref)}
           score={score}

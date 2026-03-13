@@ -2,7 +2,7 @@ import { db } from '../../lib/firebase';
 import { collection, doc, getDoc, setDoc, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 
 export interface DailyPlanTask {
-  type: 'srs' | 'listening' | 'speaking' | 'quiz' | 'grammar' | 'story' | 'spelling';
+  type: 'srs' | 'listening' | 'speaking' | 'quiz' | 'grammar' | 'story' | 'spelling' | 'dictation';
   targetId?: string;
   minutes: number;
   status: 'todo' | 'done';

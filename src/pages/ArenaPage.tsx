@@ -158,7 +158,7 @@ export default function ArenaPage() {
   const generateQuestions = async (roomId: string, grade: string, activeSocket: Socket) => {
     setIsGenerating(true);
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
         // Fallback to server-side generation if needed, but we do it client-side for now
         // Wait, the instructions say to use process.env.GEMINI_API_KEY

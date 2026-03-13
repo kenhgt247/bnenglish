@@ -93,12 +93,34 @@ export default function SeedPage() {
     }
   };
 
+  const handleGenerateAIQuiz = async (level: string) => {
+    setGeneratingAIQuiz(true);
+    try {
+      const questions = await generateQuizQuestions(level);
+      const batch = writeBatch(db);
+      questions.forEach((q, index) => {
+        const quizId = `quiz_${level}_${Date.now()}_${index}`;
+        batch.set(doc(db, 'ai_quizzes', quizId), {
+          ...q,
+          level,
+          createdAt: Date.now()
+        });
+      });
+      await batch.commit();
+      toast.success(`Tạo ${questions.length} câu hỏi quiz thành công!`);
+    } catch (error: any) {
+      console.error(error);
+      toast.error('Lỗi tạo quiz');
+    } finally {
+      setGeneratingAIQuiz(false);
+    }
+  };
+
   const handleSeedGrade = async (gradeData: any) => {
     const gradeId = gradeData.grade.id;
     setGradeLoading(gradeId, true);
     try {
       const batch = writeBatch(db);
-
       // Seed Grade
       batch.set(doc(db, 'grades', gradeId), {
         name: gradeData.grade.name,

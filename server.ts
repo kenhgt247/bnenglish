@@ -4,6 +4,7 @@ import { Server } from "socket.io";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import path from "path";
+import fs from "fs";
 
 dotenv.config();
 
@@ -21,6 +22,11 @@ async function startServer() {
 
   // AI Arena Logic
   const rooms = new Map();
+
+  app.use((req, res, next) => {
+    console.log(`Request: ${req.method} ${req.url}`);
+    next();
+  });
 
   io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
@@ -246,6 +252,7 @@ async function startServer() {
     rooms.delete(roomId);
   }
 
+  console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -254,8 +261,12 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
+    if (!fs.existsSync(distPath)) {
+      console.error(`Dist path does not exist: ${distPath}`);
+    }
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
+      console.log(`Catch-all route hit for: ${req.url}`);
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

@@ -50,6 +50,21 @@ export const grade7Data = {
   - She **enjoys reading** books. (Cô ấy thích đọc sách)
   - They **hate washing** the dishes. (Họ ghét việc rửa bát)
   - Do you **fancy going** to the cinema? (Bạn có thích đi xem phim không?)
+
+### Common Mistakes (Lỗi thường gặp)
+Vietnamese learners often make mistakes by translating directly from Vietnamese. 
+
+1. **Mistake:** I enjoy to play soccer.
+   **Correction:** I enjoy playing soccer.
+   *(Note: "Enjoy" must be followed by V-ing, not To-V)*
+
+2. **Mistake:** I dislike to eat vegetables.
+   **Correction:** I dislike eating vegetables.
+   *(Note: "Dislike" must be followed by V-ing, not To-V)*
+
+3. **Mistake:** I love to swimming.
+   **Correction:** I love swimming. (or: I love to swim.)
+   *(Note: "Love" can be followed by V-ing or To-V, but not "to + V-ing")*
             `
           }
         },

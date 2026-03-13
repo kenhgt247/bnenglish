@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Grade } from '../types';
-import { GraduationCap, BookOpen, Star, Brain } from 'lucide-react';
+import { GraduationCap, BookOpen, Star, Brain, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/useAuthStore';
 
@@ -105,6 +105,17 @@ export default function Home() {
             <h2 className="text-2xl font-bold mb-1">Động Từ Bất Quy Tắc</h2>
             <p className="text-sm font-medium opacity-80 flex items-center gap-1">
               360 từ bắt buộc <Star className="w-3 h-3" />
+            </p>
+          </Link>
+          <Link 
+            to="/game"
+            className="group relative overflow-hidden rounded-3xl p-6 border-2 transition-all hover:-translate-y-1 hover:shadow-lg bg-amber-50 text-amber-600 border-amber-200"
+          >
+            <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-20 rounded-full blur-xl group-hover:scale-150 transition-transform duration-500"></div>
+            <Zap className="w-10 h-10 mb-4 opacity-80" />
+            <h2 className="text-2xl font-bold mb-1">Học và Chơi</h2>
+            <p className="text-sm font-medium opacity-80 flex items-center gap-1">
+              Chơi & Học <Star className="w-3 h-3" />
             </p>
           </Link>
         </div>

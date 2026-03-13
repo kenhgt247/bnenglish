@@ -13,6 +13,8 @@ import { b1Words } from '../data/b1Words';
 import { b2Words } from '../data/b2Words';
 import { c1c2Words } from '../data/c1c2Words';
 import { generateB1Words, generateB2Words, generateC1C2Words, generateA1A2Words, generateQuizQuestions } from '../services/gemini';
+import { generateGameLevels } from '../services/gameGenerator';
+import { GameType } from '../types/game';
 
 export default function SeedPage() {
   const [loading, setLoading] = useState(false);
@@ -468,47 +470,32 @@ export default function SeedPage() {
     }
   };
 
-  const handleGenerateAIQuiz = async (level: string) => {
-    const totalQuestions = 100;
-    const batchSize = 10;
-    const totalBatches = Math.ceil(totalQuestions / batchSize);
-    
-    setGeneratingAIQuiz(true);
-    setAiQuizProgress({ current: 0, total: totalQuestions });
+  const [generatingGameLevels, setGeneratingGameLevels] = useState(false);
+  const [gameTopic, setGameTopic] = useState('');
 
+  const handleGenerateGameLevels = async (gameType: GameType) => {
+    if (!gameTopic) {
+      toast.error('Vui lòng nhập chủ đề');
+      return;
+    }
+    setGeneratingGameLevels(true);
     try {
-      const quizCollection = `quizzes/${level}/questions`;
+      const levels = await generateGameLevels(gameTopic, 20, gameType);
+      
+      // Save to Firestore
+      const batch = writeBatch(db);
+      levels.forEach((level) => {
+        const levelRef = doc(db, 'gameLevels', `${gameType}_${level.id}`);
+        batch.set(levelRef, level);
+      });
+      await batch.commit();
 
-      for (let b = 0; b < totalBatches; b++) {
-        if (b > 0) {
-          await new Promise(resolve => setTimeout(resolve, 3000));
-        }
-        const questions = await generateQuizQuestions(level, batchSize);
-        
-        if (questions.length === 0) continue;
-
-        const batch = writeBatch(db);
-        
-        questions.forEach((q, index) => {
-          const questionId = `q_${level}_${b * batchSize + index + 1}`;
-          batch.set(doc(db, quizCollection, questionId), {
-            ...q,
-            level: level,
-            createdAt: new Date()
-          });
-        });
-
-        await batch.commit();
-        setAiQuizProgress(prev => ({ ...prev, current: (b + 1) * batchSize }));
-        toast.success(`Đã tạo ${(b + 1) * batchSize} câu đố ${level}...`, { id: 'ai-quiz-progress' });
-      }
-
-      toast.success(`Hoàn thành tạo ${totalQuestions} câu đố ${level}!`);
-    } catch (error: any) {
+      toast.success(`Đã tạo và lưu ${levels.length} cấp độ game ${gameType} thành công!`);
+    } catch (error) {
       console.error(error);
-      toast.error(`Lỗi khi tạo câu đố ${level} bằng AI`);
+      toast.error('Lỗi khi tạo hoặc lưu cấp độ game');
     } finally {
-      setGeneratingAIQuiz(false);
+      setGeneratingGameLevels(false);
     }
   };
 
@@ -609,6 +596,36 @@ export default function SeedPage() {
 
   return (
     <div className="max-w-4xl mx-auto mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Game Level Generator */}
+      <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 col-span-1 md:col-span-2">
+        <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+          <Brain className="w-6 h-6 text-indigo-600" />
+          AI Game Level Generator
+        </h2>
+        <div className="flex gap-4 mb-6">
+          <input
+            type="text"
+            value={gameTopic}
+            onChange={(e) => setGameTopic(e.target.value)}
+            placeholder="Nhập chủ đề (ví dụ: Động vật, Gia đình)..."
+            className="flex-1 p-3 border border-slate-200 rounded-xl"
+          />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {(['word-matching', 'sentence-ordering', 'fill-in-the-blanks'] as GameType[]).map((type) => (
+            <button
+              key={type}
+              onClick={() => handleGenerateGameLevels(type)}
+              disabled={generatingGameLevels || !gameTopic}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+            >
+              {generatingGameLevels ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+              Tạo game {type}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* A1-A2 Words Seed */}
       <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 text-center">
         <div className="bg-blue-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">

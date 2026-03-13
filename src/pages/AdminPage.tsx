@@ -1,6 +1,6 @@
 import { useAuthStore } from '../store/useAuthStore';
-import { Navigate } from 'react-router-dom';
 import { ShieldAlert } from 'lucide-react';
+import { AdminDashboard } from '../components/Admin/AdminDashboard';
 
 export default function AdminPage() {
   const { profile, loading } = useAuthStore();
@@ -22,11 +22,7 @@ export default function AdminPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-slate-800">Quản trị hệ thống</h1>
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-        <p className="text-slate-600">
-          Chức năng CRUD cho Grades, Units, Lessons, và Words sẽ được thêm ở đây.
-        </p>
-      </div>
+      <AdminDashboard />
     </div>
   );
 }

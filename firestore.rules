@@ -28,6 +28,12 @@ service cloud.firestore {
       }
     }
 
+    // Game Levels
+    match /gameLevels/{levelId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // Quizzes
     match /quizzes/{level}/questions/{questionId} {
       allow read: if true;

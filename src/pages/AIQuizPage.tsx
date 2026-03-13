@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, addDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { ArrowLeft, CheckCircle2, XCircle, Trophy, Loader2 } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
@@ -64,6 +64,13 @@ export default function AIQuizPage() {
         });
 
         const generatedQuestions = JSON.parse(response.text || "[]");
+        
+        // Save to Firestore
+        const quizCollectionRef = collection(db, `quizzes/${level}/questions`);
+        for (const q of generatedQuestions) {
+          await addDoc(quizCollectionRef, q);
+        }
+        
         setQuestions(generatedQuestions);
       } catch (error) {
         console.error("Error fetching/generating quiz:", error);

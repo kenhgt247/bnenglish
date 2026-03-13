@@ -2,8 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { GameCanvas } from './GameCanvas';
 import { QuizModal } from './QuizModal';
 import { mockQuizData } from './gameData';
+import { Home, RotateCcw } from 'lucide-react';
+import { RotateDeviceOverlay } from './RotateDeviceOverlay';
 
-export const EnglishBirdGame: React.FC = () => {
+interface EnglishBirdGameProps {
+  onExit: () => void;
+}
+
+export const EnglishBirdGame: React.FC<EnglishBirdGameProps> = ({ onExit }) => {
   const [gameState, setGameState] = useState<'playing' | 'paused' | 'gameover'>('playing');
   const [score, setScore] = useState(0);
   const [currentQuiz, setCurrentQuiz] = useState<any | null>(null);
@@ -67,10 +73,26 @@ export const EnglishBirdGame: React.FC = () => {
   };
 
   return (
-    <div className="relative flex flex-col items-center gap-4 w-full max-w-2xl mx-auto p-4">
-      <h1 className="text-2xl font-bold">English Bird Game</h1>
-      <p className="text-lg">Score: {score}</p>
-      <div className="relative w-full">
+    <div className="relative flex flex-col items-center w-full h-screen bg-sky-100 overflow-hidden">
+      {/* Portrait Overlay - Only visible on mobile in portrait mode */}
+      <div className="hidden [@media(orientation:portrait)]:flex">
+        <RotateDeviceOverlay />
+      </div>
+
+      {/* Floating Buttons */}
+      <div className="absolute top-4 left-4 z-20">
+        <button onClick={onExit} className="p-3 bg-white rounded-full shadow-lg text-slate-700 hover:bg-slate-100">
+          <Home size={24} />
+        </button>
+      </div>
+      <div className="absolute top-4 right-4 z-20">
+        <button onClick={() => window.location.reload()} className="p-3 bg-white rounded-full shadow-lg text-slate-700 hover:bg-slate-100">
+          <RotateCcw size={24} />
+        </button>
+      </div>
+
+      <h1 className="text-2xl font-bold mt-4">Score: {score}</h1>
+      <div className="relative w-full h-full flex-grow">
         <GameCanvas 
           onPassColumn={handlePassColumn} 
           onGameOver={handleGameOver} 
@@ -80,12 +102,15 @@ export const EnglishBirdGame: React.FC = () => {
         />
       </div>
       {gameState === 'playing' && (
-        <button 
-          onClick={() => gameRef.current?.jump()}
-          className="bg-blue-500 text-white py-3 px-8 rounded-full font-bold text-lg w-full max-w-xs"
-        >
-          Jump (Space)
-        </button>
+        <div className="w-full flex flex-col items-center gap-2">
+          <button 
+            onClick={() => gameRef.current?.jump()}
+            className="bg-blue-500 text-white py-6 px-12 rounded-2xl font-bold text-xl w-full max-w-xs shadow-lg hover:bg-blue-600 transition-all active:scale-95"
+          >
+            JUMP!
+          </button>
+          <p className="text-slate-500 text-sm">Nhấn Space hoặc Chạm vào màn hình để nhảy</p>
+        </div>
       )}
       {gameState === 'gameover' && (
         <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-4 z-10">

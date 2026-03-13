@@ -11,6 +11,7 @@ interface GameCanvasProps {
 export const GameCanvas: React.FC<GameCanvasProps> = ({ onPassColumn, onGameOver, isPaused, setGameRef, score }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const jumpRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -31,8 +32,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onPassColumn, onGameOver
     let birdY = canvas.height / 2;
     let birdVelocity = 0;
     // Tuned physics for much easier experience
-    const gravity = 0.0008; // Further reduced gravity
-    const jump = -0.25;      // Further reduced jump force
+    const gravity = 0.0012; // Increased gravity for faster fall
+    const jumpForce = -0.25;      // Further reduced jump force
     // Increase speed based on score
     const baseColumnSpeed = 0.1;
     const columnSpeed = baseColumnSpeed + (score * 0.01);
@@ -116,7 +117,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onPassColumn, onGameOver
     };
 
     animationId = requestAnimationFrame(gameLoop);
-    setGameRef({ jump: () => (birdVelocity = jump) });
+    const jump = () => (birdVelocity = jumpForce);
+    setGameRef({ jump });
+    jumpRef.current = jump;
 
     return () => {
       cancelAnimationFrame(animationId);
@@ -125,8 +128,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onPassColumn, onGameOver
   }, [isPaused, onGameOver, onPassColumn, setGameRef, score]);
 
   return (
-    <div ref={containerRef} className="w-full h-[60vh] bg-sky-200 border-4 border-slate-800 rounded-xl overflow-hidden">
-      <canvas ref={canvasRef} />
+    <div ref={containerRef} className="w-full h-full bg-sky-200 border-4 border-slate-800 rounded-xl overflow-hidden cursor-pointer" 
+         onClick={() => jumpRef.current()}
+         onTouchStart={(e) => { e.preventDefault(); jumpRef.current() }}>
+      <canvas ref={canvasRef} className="w-full h-full" />
     </div>
   );
 };

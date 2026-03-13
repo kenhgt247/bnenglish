@@ -7,11 +7,8 @@ export default function GamePage() {
 
   if (showBirdGame) {
     return (
-      <div className="max-w-2xl mx-auto p-6">
-        <button onClick={() => setShowBirdGame(false)} className="flex items-center gap-2 text-slate-500 mb-6"><ArrowLeft /> Quay lại</button>
-        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
-          <EnglishBirdGame />
-        </div>
+      <div className="fixed inset-0 z-50 bg-white">
+        <EnglishBirdGame onExit={() => setShowBirdGame(false)} />
       </div>
     );
   }
